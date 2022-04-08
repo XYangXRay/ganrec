@@ -385,159 +385,101 @@ class GANrec(keras.Model):
             "D_Y_loss": disc_Y_loss,
         }
 
+class GANMonitor(keras.callbacks.Callback):
+    """A callback to generate and save images after each epoch"""
 
-def rec_gan(prj, ang, save_wpath, init_wpath=None, **kwargs):
-    gan_kwargs = ['learning_rate', 'num_steps', 'display_step', 'conv_nb', 'conv_size',
-                  'dropout', 'weights_init', 'method', 'cost_rate', 'gl_tol', 'iter_plot']
-    kwargs_defaults = _get_ganrec_kwargs()
-    for kw in gan_kwargs:
-        kwargs.setdefault(kw, kwargs_defaults[kw])
-    if init_wpath:
-        kwargs['weights_init'] = True
-    _, nang, px, _ = prj.shape
-    img_input = tf.keras.Input(shape=prj.shape)
-    img_output = tf.keras.Input(shape=prj.shape)
+    def __init__(self, num_img=4):
+        self.num_img = num_img
 
-    pred, recon = tomo_learn(img_input, ang, px, reuse=False, conv_nb=kwargs['conv_nb'],
-                             conv_size=kwargs['conv_size'],
-                             dropout=kwargs['dropout'],
-                             method=kwargs['method']
-                             )
-    disc_real = discriminator(img_output)
-    disc_fake = discriminator(pred, reuse=True)
+    def on_epoch_end(self, epoch, logs=None):
+        _, ax = plt.subplots(4, 2, figsize=(12, 12))
+        for i, img in enumerate(test_horses.take(self.num_img)):
+            prediction = self.model.gen_G(img)[0].numpy()
+            prediction = (prediction * 127.5 + 127.5).astype(np.uint8)
+            img = (img[0] * 127.5 + 127.5).numpy().astype(np.uint8)
 
-    gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc_fake,
-                                                                      labels=tf.ones_like(disc_fake))) \
-               + tf.reduce_mean(tf.abs(img_output - pred)) * kwargs['cost_rate']
-    disc_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc_real,
-                                                                            labels=tf.ones_like(disc_real)))
-    disc_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=disc_fake,
-                                                                            labels=tf.zeros_like(disc_fake)))
-    disc_loss = disc_loss_real + disc_loss_fake
+            ax[i, 0].imshow(img)
+            ax[i, 1].imshow(prediction)
+            ax[i, 0].set_title("Input image")
+            ax[i, 1].set_title("Translated image")
+            ax[i, 0].axis("off")
+            ax[i, 1].axis("off")
 
-    gen_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
-    disc_vars = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
+            prediction = keras.preprocessing.image.array_to_img(prediction)
+            prediction.save(
+                "generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch + 1)
+            )
+        plt.show()
+        plt.close()
 
-    optimizer_gen = tf.compat.v1.train.AdamOptimizer(learning_rate=kwargs['learning_rate'])
-    # optimizer_disc = tf.compat.v1.train.AdamOptimizer(learning_rate=kwargs['learning_rate'])
-    optimizer_disc = tf.compat.v1.train.AdamOptimizer(learning_rate=1e-5)
+adv_loss_fn = keras.losses.MeanSquaredError()
 
-    train_gen = optimizer_gen.minimize(gen_loss, var_list=gen_vars)
-    train_disc = optimizer_disc.minimize(disc_loss, var_list=disc_vars)
-    ######################################################################
-    # # plots for debug
-    if kwargs['iter_plot']:
-        fig, axs = plt.subplots(2, 2, figsize=(16, 10))
-        im0 = axs[0, 0].imshow(prj.reshape(nang, px), cmap='jet')
-        tx0 = axs[0, 0].set_title('Sinogram')
-        fig.colorbar(im0, ax=axs[0, 0])
-        tx1 = axs[1, 0].set_title('Difference of sinogram for iteration 0')
-        im1 = axs[1, 0].imshow(prj.reshape(nang, px), cmap='jet')
-        fig.colorbar(im1, ax=axs[1, 0])
-        im2 = axs[0, 1].imshow(np.zeros((px, px)), cmap='jet')
-        fig.colorbar(im2, ax=axs[0, 1])
-        tx2 = axs[0, 1].set_title('Reconstruction')
-        xdata, g_loss = [], []
-        # im3, = axs[1, 1].plot(xdata, g_loss, 'r-')
-        im3, = axs[1, 1].semilogy(xdata, g_loss, 'r-')
-        tx3 = axs[1, 1].set_title('Generator loss')
-        plt.tight_layout()
-    #########################################################################
-    # ani_init()
-    rec_tmp = tf.zeros([1, px, px, 1])
-
-    init = tf.compat.v1.global_variables_initializer()
-    saver = tf.compat.v1.train.Saver()
-
-    with tf.compat.v1.Session() as sess:
-        # Run the initializer
-        sess.run(init)
-        if kwargs['weights_init']:
-            if init_wpath == None:
-                print('Please provide the file name of initial weights.')
-            saver.restore(sess, init_wpath)
-        for step in range(1, kwargs['num_steps'] + 1):
-            with tf.device('/device:GPU:1'):
-                dl, _ = sess.run([disc_loss, train_disc],
-                                 feed_dict={img_input: prj, img_output: prj})
-            with tf.device('/device:GPU:2'):
-                gl, _ = sess.run([gen_loss, train_gen], feed_dict={img_input: prj, img_output: prj})
-
-            if np.isnan(gl):
-                # gl = np.mean(g_loss)
-                sess.run(init)
-            if kwargs['iter_plot']:
-                xdata.append(step)
-                g_loss.append(gl)
-                # print(g_loss)
-                if step % kwargs['display_step'] == 0 or step == 1:
-                    pred, recon = sess.run(tomo_learn(prj, ang, px, reuse=True, conv_nb=kwargs['conv_nb'],
-                                                      conv_size=kwargs['conv_size'],
-                                                      dropout=kwargs['dropout'],
-                                                      method=kwargs['method']))
-                    ###########################################################
-                    sino_plt = np.reshape(pred, (nang, px))
-                    sino_plt = np.abs(sino_plt - prj.reshape((nang, px)))
-                    rec_plt = np.reshape(recon, (px, px))
-                    tx1.set_text('Difference of sinogram for iteration {0}'.format(step))
-                    vmax = np.max(sino_plt)
-                    vmin = np.min(sino_plt)
-                    im1.set_data(sino_plt)
-                    im1.set_clim(vmin, vmax)
-                    im2.set_data(rec_plt)
-                    vmax = np.max(rec_plt)
-                    vmin = np.min(rec_plt)
-                    im2.set_clim(vmin, vmax)
-                    # axs[1, 1].plot(xdata, g_loss, 'r-')
-                    axs[1, 1].semilogy(xdata, g_loss, 'r-')
-                    # figname = '/gpfs/petra3/scratch/yangx/data_tomo/test_pattern_exp/presentation/ganrec_log_steps_s100_2000/'\
-                    #           +'iter_'+str(step)+'.png'
-                    # plt.savefig(figname, dpi=200)
-                    plt.pause(0.1)
-                    ######################################################################
-                    print("Step " + str(step) + ", Generator Loss= " + "{:.7f}".format(gl) +
-                          ', Discriminator loss = ' + "{:.7f}".format(dl))
-            if gl < kwargs['gl_tol']:
-                _, recon = sess.run(tomo_learn(prj, ang, px, reuse=True, conv_nb=kwargs['conv_nb'],
-                                               conv_size=kwargs['conv_size'],
-                                               dropout=kwargs['dropout'],
-                                               method=kwargs['method']))
-                break
-            if step > (kwargs['num_steps'] - 10):
-                _, recon = sess.run(tomo_learn(prj, ang, px, reuse=True, conv_nb=kwargs['conv_nb'],
-                                               conv_size=kwargs['conv_size'],
-                                               dropout=kwargs['dropout'],
-                                               method=kwargs['method']))
-                rec_tmp = tf.concat([rec_tmp, recon], axis=0)
-                # print(rec_tmp.shape)
-                # _, recon = sess.run(tomo_learn(prj, ang, px, reuse=True, conv_nb = kwargs['conv_nb'],
-                #                      conv_size = kwargs['conv_size'],
-                #                      dropout = kwargs['dropout'],
-                #                      method = kwargs['method']))
-        plt.close(fig)
-        saver.save(sess, save_wpath)
-        if rec_tmp.shape[0] > 1:
-            rec_tmp = tf.slice(rec_tmp, [1, 0, 0, 0], [10, px, px, 1])
-            recon = tf.reduce_mean(rec_tmp, axis=0).eval()
-            # recon = recon.eval()
-        # print(recon.shape)
-    return recon
+# Define the loss function for the generators
+def generator_loss_fn(fake):
+    fake_loss = adv_loss_fn(tf.ones_like(fake), fake)
+    return fake_loss
 
 
-def _get_ganrec_kwargs():
-    return {
-        'learning_rate': 5e-3,
-        'num_steps': 10000,
-        'display_step': 100,
-        'conv_nb': 32,
-        'conv_size': 3,
-        'dropout': 0.25,
-        'weights_init': False,
-        'method': 'backproj',
-        'cost_rate': 10,
-        'gl_tol': 1e-6,
-        'iter_plot': True
-    }
+# Define the loss function for the discriminators
+def discriminator_loss_fn(real, fake):
+    real_loss = adv_loss_fn(tf.ones_like(real), real)
+    fake_loss = adv_loss_fn(tf.zeros_like(fake), fake)
+    return (real_loss + fake_loss) * 0.5
+
+
+# Create cycle gan model
+cycle_gan_model = GANrec(
+    generator_G=gen_G, generator_F=gen_F, discriminator_X=disc_X, discriminator_Y=disc_Y
+)
+
+# Compile the model
+cycle_gan_model.compile(
+    gen_G_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
+    gen_F_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
+    disc_X_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
+    disc_Y_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
+    gen_loss_fn=generator_loss_fn,
+    disc_loss_fn=discriminator_loss_fn,
+)
+# Callbacks
+plotter = GANMonitor()
+checkpoint_filepath = "./model_checkpoints/cyclegan_checkpoints.{epoch:03d}"
+model_checkpoint_callback = keras.callbacks.ModelCheckpoint(
+    filepath=checkpoint_filepath
+)
+
+
+
+fname_data = '/data/xlearn_data/data_tomo/test_pattern_exp/prj256_181_2.tiff'
+cycle_gan_model.fit(
+    tf.data.Dataset.zip((train_horses, train_zebras)),
+    epochs=1,
+    callbacks=[plotter, model_checkpoint_callback],
+)
+
+def main():
+    ###########################################################################################################
+    sdir_ltp = '/data/xlearn_data/data_tomo/test_pattern_exp/presentation/full_angle'
+    save_wpath = '/data/xlearn_data/weights_tomo/est.ckpt'
+    ini_wpath = '/data/xlearn_data/data_tomo/test_pattern_exp/test_ini.ckpt'
+
+    data = dxchange.read_tiff(fname_data)
+    nang, nslice, px = data.shape
+    # ang = np.arange(nang)
+    theta = angles(nang, ang1=0, ang2=180)
+    slice = 100
+    prj = data[:,slice,:]
+    prj = nor_data(prj)
+    prj = np.repeat(prj[np.newaxis, :, :, np.newaxis], 1, axis=0)
+    theta = theta.astype('float32')
+    prj = prj.astype('float32')
+    start = time.time()
+    recon = rec_dcgan(prj, theta, save_wpath, num_steps=5000, cost_rate=10, method='fc', learning_rate=1e-3)
+    end = time.time()
+    print('The prediction runs for %s seconds' % (end - start))
+    sname_xbic = sdir_ltp + "_ganrec_5000"
+    dxchange.write_tiff(np.reshape(recon,(256,256)), sname_xbic, dtype='float32')
+
 
 
 def angles(nang, ang1=0., ang2=180.):
