@@ -1,32 +1,46 @@
-from __future__ import absolute_import, division, print_function
-import os
-import numpy as np
-import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
 import tensorflow_addons as tfa
-from tensorflow.python.framework import ops
+import glob
+import imageio
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import PIL
+from tensorflow.keras import layers, activations, Input
+import time
+import dxchange
+from IPython import display
 
 
-def dense_norm(units, apply_batchnorm=True):
-    initializer = tf.random_normal_initializer(0., 0.02)
+def nor_data(img):
+    mean_tmp = np.mean(img)
+    std_tmp = np.std(img)
+    img = (img - mean_tmp) / std_tmp
+    img = (img - img.min()) / (img.max() - img.min())
+    return img
+
+def angles(nang, ang1=0., ang2=180.):
+    return np.linspace(ang1 * np.pi / 180., ang2 * np.pi / 180., nang)
+
+
+def dense_norm(units, dropout, apply_batchnorm=True):
+    initializer = tf.random_normal_initializer()
 
     result = tf.keras.Sequential()
     result.add(
-        layers.Dense(units, activation=None, use_bias=True, kernel_initializer=initializer))
-    result.add(layers.Dropout(0.25))
+        layers.Dense(units, activation=tf.nn.tanh, use_bias=True, kernel_initializer=initializer))
+    result.add(layers.Dropout(dropout))
 
     if apply_batchnorm:
         result.add(layers.BatchNormalization())
 
-    result.add(layers.tanh())
+    #     result.add(layers.LeakyReLU())
 
     return result
 
 
 def conv2d_norm(filters, size, strides, apply_batchnorm=True):
-    initializer = tf.random_normal_initializer(0., 0.02)
+    initializer = tf.random_normal_initializer()
 
     result = tf.keras.Sequential()
     result.add(
@@ -42,7 +56,7 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=True):
 
 
 def dconv2d_norm(filters, size, strides, apply_dropout=False):
-    initializer = tf.random_normal_initializer(0., 0.02)
+    initializer = tf.random_normal_initializer()
 
     result = tf.keras.Sequential()
     result.add(
@@ -61,49 +75,25 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
     return result
 
 
-def mdnn_net(conv_num, conv_size):
-    img_size = input.shape[2]
+def make_generator(inputs, conv_num, conv_size, dropout, px):
+    img_size = px
     fc_size = img_size ** 2
 
     # inputs = tf.keras.layers.Input(shape=[img_size, img_size, 1])
-    x = tf.keras.layers.Flattern(input)
-
-    fc_stack = [
-        dense_norm(conv_num * 4),
-        dense_norm(conv_num * 4),
-        dense_norm(conv_num * 4),
-        dense_norm(fc_size),
-    ]
-
-    conv_stack = [
-        conv2d_norm(conv_num, conv_size, 1),
-        conv2d_norm(conv_num, conv_size, 1),
-        conv2d_norm(conv_num * 2, conv_size, 1),
-        conv2d_norm(conv_num * 2, conv_size, 1),
-        conv2d_norm(conv_num, conv_size, 1),
-        conv2d_norm(conv_num, conv_size, 1),
-    ]
-
     initializer = tf.random_normal_initializer(0., 0.02)
-    last = tf.keras.layers.Conv2DTranspose(1, 4,
-                                           strides=1,
-                                           padding='same',
-                                           kernel_initializer=initializer,
-                                           activation='tanh')  # (batch_size, 256, 256, 3)
-
-    # Fully connected layers through the model
-
-    for fc in fc_stack:
-        x = fc(x)
-
+    x = tf.keras.layers.Flatten()(inputs)
+    x = dense_norm(conv_num * 4, dropout)(x)
+    x = dense_norm(conv_num * 4, dropout)(x)
+    x = dense_norm(conv_num * 4, dropout)(x)
+    x = dense_norm(fc_size, dropout)(x)
     x = tf.reshape(x, shape=[-1, img_size, img_size, 1])
-    # Convolutions
-    for conv in conv_stack:
-        x = conv(x)
-    x = last(x)
+    x = conv2d_norm(conv_num, conv_size, 1)(x)
+    x = conv2d_norm(conv_num, conv_size, 1)(x)
+    x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
+    x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
+    x = conv2d_norm(1, conv_size, 1)(x)
 
-    return tf.keras.Model(inputs=input, outputs=x)
-
+    return tf.keras.Model(inputs=inputs, outputs=x)
 
 def filter_net():
     inputs = tf.keras.layers.Input(shape=[256, 256, 3])
@@ -156,33 +146,38 @@ def filter_net():
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-def discriminator():
-    initializer = tf.random_normal_initializer(0., 0.02)
+def make_discriminator_model(nang, px):
+    model = tf.keras.Sequential()
+    model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
+                                     input_shape=[nang, px, 1]))
+    model.add(layers.LeakyReLU())
+    model.add(layers.Dropout(0.3))
 
-    inp = tf.keras.layers.Input(shape=[256, 256, 3], name='input_image')
-    tar = tf.keras.layers.Input(shape=[256, 256, 3], name='target_image')
+    model.add(layers.Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
+    model.add(layers.LeakyReLU())
+    model.add(layers.Dropout(0.3))
 
-    x = tf.keras.layers.concatenate([inp, tar])  # (batch_size, 256, 256, channels*2)
+    model.add(layers.Flatten())
+    model.add(layers.Dense(1))
 
-    down1 = conv2d_norm(64, 4, 2)(x)  # (batch_size, 128, 128, 64)
-    down2 = conv2d_norm(128, 4, 2)(down1)  # (batch_size, 64, 64, 128)
-    down3 = conv2d_norm(256, 4, 2)(down2)  # (batch_size, 32, 32, 256)
+    return model
 
-    zero_pad1 = tf.keras.layers.ZeroPadding2D()(down3)  # (batch_size, 34, 34, 256)
-    conv = tf.keras.layers.Conv2D(512, 4, strides=1,
-                                  kernel_initializer=initializer,
-                                  use_bias=False)(zero_pad1)  # (batch_size, 31, 31, 512)
+def discriminator_loss(real_output, fake_output):
+    real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_output,
+                                                                       labels=tf.ones_like(real_output)))
+    fake_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output,
+                                                                       labels=tf.zeros_like(fake_output)))
+#     real_loss = cross_entropy(tf.ones_like(real_output), real_output)
+#     fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
+    total_loss = real_loss + fake_loss
+    return total_loss
 
-    batchnorm1 = tf.keras.layers.BatchNormalization()(conv)
+def generator_loss(fake_output, img_output, pred):
+    gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output,
+                                                                      labels=tf.ones_like(fake_output))) \
+               + tf.reduce_mean(tf.abs(img_output - pred)) * 10
+    return gen_loss
 
-    leaky_relu = tf.keras.layers.LeakyReLU()(batchnorm1)
-
-    zero_pad2 = tf.keras.layers.ZeroPadding2D()(leaky_relu)  # (batch_size, 33, 33, 512)
-
-    last = tf.keras.layers.Conv2D(1, 4, strides=1,
-                                  kernel_initializer=initializer)(zero_pad2)  # (batch_size, 30, 30, 1)
-
-    return tf.keras.Model(inputs=[inp, tar], outputs=last)
 
 
 def tfnor_data(img):
@@ -235,252 +230,118 @@ def tomo_learn(sinoi, ang, px, reuse, conv_nb, conv_size, dropout, method):
     sinop = tfnor_data(sinop)
     return sinop, recon
 
+@tf.function
+def recon_step(sino, ang, generator, discriminator, generator_optimizer,  discriminator_optimizer):
+#     noise = tf.random.normal([BATCH_SIZE, noise_dim])
 
-def cost_mse(ytrue,
-             ypred):
-    mse = tf.reduce_mean(tf.losses.mean_squared_error(ytrue, ypred))
-    return mse
+    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+        recon = generator(sino, training=True)
+#         tf.print(recon)
+        sino_rec = tomo_radon(recon, ang)
+        sino_rec = tfnor_data(sino_rec)
+        real_output = discriminator(sino, training=True)
+        fake_output = discriminator(sino_rec, training=True)
+        gen_loss = generator_loss(fake_output, sino, sino_rec)
+        disc_loss = discriminator_loss(real_output, fake_output)
 
+    gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
+    gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
 
-def cost_ssim(ytrue,
-              ypred):
-    mse = tf.reduce_mean(tf.losses.mean_squared_error(ytrue, ypred))
-    ssim = tf.reduce_mean(tfa.image.ssim(ytrue, ypred, max_val=1))
-    return tf.divide(mse, ssim)
-    # return 1-tf.reduce_mean(tfa.image.ssim(ytrue, ypred, max_val=1.0))
-
-
-def cost_ssimms(ytrue,
-                ypred):
-    mse = tf.reduce_mean(tf.losses.mean_squared_error(ytrue, ypred))
-    ssim = tf.reduce_mean(tfa.image.ssim_multiscale(ytrue, ypred, max_val=1))
-    return tf.divide(mse, ssim ** 0.5)
-
-gen_G = mdnn_net(name="generator_G")
-gen_F = tomo_learn(name="generator_F")
-
-# Get the discriminators
-disc_X = discriminator(name="discriminator_X")
-disc_Y = discriminator(name="discriminator_Y")
-
-class GANrec(keras.Model):
-    def __init__(
-            self,
-            generator_G,
-            generator_F,
-            discriminator_X,
-            discriminator_Y,
-            lambda_l1=10.0,
-            lambda_identity=0.5,
-    ):
-        super(GANrec, self).__init__()
-        self.gen_G = generator_G
-        self.gen_F = generator_F
-        self.disc_X = discriminator_X
-        self.disc_Y = discriminator_Y
-        self.lambda_l1 = lambda_l1
-        self.lambda_identity = lambda_identity
-
-    def compile(
-            self,
-            gen_G_optimizer,
-            gen_F_optimizer,
-            disc_X_optimizer,
-            disc_Y_optimizer,
-            gen_loss_fn,
-            disc_loss_fn,
-    ):
-        super(GANrec, self).compile()
-        self.gen_G_optimizer = gen_G_optimizer
-        self.gen_F_optimizer = gen_F_optimizer
-        self.disc_X_optimizer = disc_X_optimizer
-        self.disc_Y_optimizer = disc_Y_optimizer
-        self.generator_loss_fn = gen_loss_fn
-        self.discriminator_loss_fn = disc_loss_fn
-        self.cycle_loss_fn = keras.losses.MeanAbsoluteError()
-        self.identity_loss_fn = keras.losses.MeanAbsoluteError()
-
-    def recon_step(self, batch_data):
-        # x is Horse and y is zebra
-        real_x, real_y = batch_data
-
-        with tf.GradientTape(persistent=True) as tape:
-            # Horse to fake zebra
-            fake_y = self.gen_G(real_x, training=True)
-            # Zebra to fake horse -> y2x
-            fake_x = self.gen_F(real_y, training=True)
-
-            # Cycle (Horse to fake zebra to fake horse): x -> y -> x
-            cycled_x = self.gen_F(fake_y, training=True)
-            # Cycle (Zebra to fake horse to fake zebra) y -> x -> y
-            cycled_y = self.gen_G(fake_x, training=True)
-
-            # Identity mapping
-            same_x = self.gen_F(real_x, training=True)
-            same_y = self.gen_G(real_y, training=True)
-
-            # Discriminator output
-            disc_real_x = self.disc_X(real_x, training=True)
-            disc_fake_x = self.disc_X(fake_x, training=True)
-
-            disc_real_y = self.disc_Y(real_y, training=True)
-            disc_fake_y = self.disc_Y(fake_y, training=True)
-
-            # Generator adverserial loss
-            gen_G_loss = self.generator_loss_fn(disc_fake_y)
-            gen_F_loss = self.generator_loss_fn(disc_fake_x)
-
-            # Generator cycle loss
-            cycle_loss_G = self.cycle_loss_fn(real_y, cycled_y) * self.lambda_cycle
-            cycle_loss_F = self.cycle_loss_fn(real_x, cycled_x) * self.lambda_cycle
-
-            # Generator identity loss
-            id_loss_G = (
-                    self.identity_loss_fn(real_y, same_y)
-                    * self.lambda_cycle
-                    * self.lambda_identity
-            )
-            id_loss_F = (
-                    self.identity_loss_fn(real_x, same_x)
-                    * self.lambda_cycle
-                    * self.lambda_identity
-            )
-
-            # Total generator loss
-            total_loss_G = gen_G_loss + cycle_loss_G + id_loss_G
-            total_loss_F = gen_F_loss + cycle_loss_F + id_loss_F
-
-            # Discriminator loss
-            disc_X_loss = self.discriminator_loss_fn(disc_real_x, disc_fake_x)
-            disc_Y_loss = self.discriminator_loss_fn(disc_real_y, disc_fake_y)
-
-        # Get the gradients for the generators
-        grads_G = tape.gradient(total_loss_G, self.gen_G.trainable_variables)
-        grads_F = tape.gradient(total_loss_F, self.gen_F.trainable_variables)
-
-        # Get the gradients for the discriminators
-        disc_X_grads = tape.gradient(disc_X_loss, self.disc_X.trainable_variables)
-        disc_Y_grads = tape.gradient(disc_Y_loss, self.disc_Y.trainable_variables)
-
-        # Update the weights of the generators
-        self.gen_G_optimizer.apply_gradients(
-            zip(grads_G, self.gen_G.trainable_variables)
-        )
-        self.gen_F_optimizer.apply_gradients(
-            zip(grads_F, self.gen_F.trainable_variables)
-        )
-
-        # Update the weights of the discriminators
-        self.disc_X_optimizer.apply_gradients(
-            zip(disc_X_grads, self.disc_X.trainable_variables)
-        )
-        self.disc_Y_optimizer.apply_gradients(
-            zip(disc_Y_grads, self.disc_Y.trainable_variables)
-        )
-
-        return {
-            "G_loss": total_loss_G,
-            "F_loss": total_loss_F,
-            "D_X_loss": disc_X_loss,
-            "D_Y_loss": disc_Y_loss,
-        }
-
-class GANMonitor(keras.callbacks.Callback):
-    """A callback to generate and save images after each epoch"""
-
-    def __init__(self, num_img=4):
-        self.num_img = num_img
-
-    def on_epoch_end(self, epoch, logs=None):
-        _, ax = plt.subplots(4, 2, figsize=(12, 12))
-        for i, img in enumerate(test_horses.take(self.num_img)):
-            prediction = self.model.gen_G(img)[0].numpy()
-            prediction = (prediction * 127.5 + 127.5).astype(np.uint8)
-            img = (img[0] * 127.5 + 127.5).numpy().astype(np.uint8)
-
-            ax[i, 0].imshow(img)
-            ax[i, 1].imshow(prediction)
-            ax[i, 0].set_title("Input image")
-            ax[i, 1].set_title("Translated image")
-            ax[i, 0].axis("off")
-            ax[i, 1].axis("off")
-
-            prediction = keras.preprocessing.image.array_to_img(prediction)
-            prediction.save(
-                "generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch + 1)
-            )
-        plt.show()
-        plt.close()
-
-adv_loss_fn = keras.losses.MeanSquaredError()
-
-# Define the loss function for the generators
-def generator_loss_fn(fake):
-    fake_loss = adv_loss_fn(tf.ones_like(fake), fake)
-    return fake_loss
+    generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
+    discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
+    return recon, sino_rec, gen_loss, disc_loss
 
 
-# Define the loss function for the discriminators
-def discriminator_loss_fn(real, fake):
-    real_loss = adv_loss_fn(tf.ones_like(real), real)
-    fake_loss = adv_loss_fn(tf.zeros_like(fake), fake)
-    return (real_loss + fake_loss) * 0.5
-
-
-# Create cycle gan model
-cycle_gan_model = GANrec(
-    generator_G=gen_G, generator_F=gen_F, discriminator_X=disc_X, discriminator_Y=disc_Y
-)
-
-# Compile the model
-cycle_gan_model.compile(
-    gen_G_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
-    gen_F_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
-    disc_X_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
-    disc_Y_optimizer=keras.optimizers.Adam(learning_rate=2e-4, beta_1=0.5),
-    gen_loss_fn=generator_loss_fn,
-    disc_loss_fn=discriminator_loss_fn,
-)
-# Callbacks
-plotter = GANMonitor()
-checkpoint_filepath = "./model_checkpoints/cyclegan_checkpoints.{epoch:03d}"
-model_checkpoint_callback = keras.callbacks.ModelCheckpoint(
-    filepath=checkpoint_filepath
-)
+def init_recon_mointor(img, px):
+    fig, axs = plt.subplots(2, 2, figsize=(16, 8))
+    im0 = axs[0, 0].imshow(img, cmap='jet')
+    tx0 = axs[0, 0].set_title('Sinogram')
+    fig.colorbar(im0, ax=axs[0, 0])
+    tx1 = axs[1, 0].set_title('Difference of sinogram for iteration 0')
+    im1 = axs[1, 0].imshow(img, cmap='jet')
+    fig.colorbar(im1, ax=axs[1, 0])
+    im2 = axs[0, 1].imshow(np.zeros((px, px)), cmap='jet')
+    fig.colorbar(im2, ax=axs[0, 1])
+    tx2 = axs[0, 1].set_title('Reconstruction')
+    xdata, plot_loss = [], []
+    im3, = axs[1, 1].plot(xdata, plot_loss)
+    tx3 = axs[1, 1].set_title('Generator loss')
+    plt.tight_layout()
+def update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss):
+    xdata.append(epoch)
+    plot_loss.append(g_loss)
+    sino_plt = np.reshape(sino_rec, (nang, px))
+    sino_plt = np.abs(sino_plt - sino_input)
+    rec_plt = np.reshape(recon, (px, px))
+    tx1.set_text('Difference of sinogram for iteration {0}'.format(epoch))
+    vmax = np.max(sino_plt)
+    vmin = np.min(sino_plt)
+    im1.set_data(sino_plt)
+    im1.set_clim(vmin, vmax)
+    im2.set_data(rec_plt)
+    vmax = np.max(rec_plt)
+    vmin = np.min(rec_plt)
+    im2.set_clim(vmin, vmax)
+    im3.set_xdata(xdata)
+    im3.set_ydata(plot_loss)
+    plt.pause(0.1)
 
 
 
-fname_data = '/data/xlearn_data/data_tomo/test_pattern_exp/prj256_181_2.tiff'
-cycle_gan_model.fit(
-    tf.data.Dataset.zip((train_horses, train_zebras)),
-    epochs=1,
-    callbacks=[plotter, model_checkpoint_callback],
-)
+def ganrec(sino_input, ang, num_iter):
+    nang, px = sino_input.shape
+    # init_recon_mointor(sino_input, px)
+    sino = np.reshape(sino_input, (1, nang, px, 1))
+    sino = tf.cast(sino, dtype=tf.float32)
+    sino = tfnor_data(sino)
+    ang = tf.cast(ang, dtype=tf.float32)
+
+    inputs = Input(shape=(nang, px, 1))
+    generator = make_generator(inputs, 32, 3, 0.5, px)
+    discriminator = make_discriminator_model(nang, px)
+    generator_optimizer = tf.keras.optimizers.Adam(1e-4)
+    discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+    checkpoint_dir = '/data/ganrec/training_checkpoints'
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                     discriminator_optimizer=discriminator_optimizer,
+                                     generator=generator,
+                                     discriminator=discriminator)
+
+    ###########################################################################
+    for epoch in range(num_iter):
+
+        recon, sino_rec, g_loss, d_loss = recon_step(sino, ang, generator, discriminator,
+                                                     generator_optimizer,
+                                                     discriminator_optimizer)
+
+        ##########################################################################
+        # update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss)
+        #############################################################################
+        # Produce images for the GIF as you go
+        #         display.clear_output(wait=True)
+        #         generate_and_save_images(generator,
+        #                              num_iter + 1,
+        #                              sino)
+
+        # Save the model every 15 epochs
+        if (epoch + 1) % 100 == 0:
+            checkpoint.save(file_prefix=checkpoint_prefix)
+        print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, g_loss.numpy(), d_loss.numpy()))
+
+    return np.reshape(recon.numpy(), (px, px))
 
 def main():
-    ###########################################################################################################
-    sdir_ltp = '/data/xlearn_data/data_tomo/test_pattern_exp/presentation/full_angle'
-    save_wpath = '/data/xlearn_data/weights_tomo/est.ckpt'
-    ini_wpath = '/data/xlearn_data/data_tomo/test_pattern_exp/test_ini.ckpt'
-
+    fname_data = '/data/ganrec/prj_shale.tiff'
     data = dxchange.read_tiff(fname_data)
     nang, nslice, px = data.shape
-    # ang = np.arange(nang)
     theta = angles(nang, ang1=0, ang2=180)
     slice = 100
-    prj = data[:,slice,:]
+    prj = data[:, slice, :]
     prj = nor_data(prj)
-    prj = np.repeat(prj[np.newaxis, :, :, np.newaxis], 1, axis=0)
-    theta = theta.astype('float32')
-    prj = prj.astype('float32')
-    start = time.time()
-    recon = rec_dcgan(prj, theta, save_wpath, num_steps=5000, cost_rate=10, method='fc', learning_rate=1e-3)
-    end = time.time()
-    print('The prediction runs for %s seconds' % (end - start))
-    sname_xbic = sdir_ltp + "_ganrec_5000"
-    dxchange.write_tiff(np.reshape(recon,(256,256)), sname_xbic, dtype='float32')
+    recon = ganrec(prj, theta, 100)
+    dxchange.write_tiff(recon, '/data/ganrec/test')
 
 
-
-def angles(nang, ang1=0., ang2=180.):
-    return np.linspace(ang1 * np.pi / 180., ang2 * np.pi / 180., nang)
+if __name__ == "__main__":
+    main()
