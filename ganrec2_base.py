@@ -1,15 +1,11 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
-import glob
-import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import PIL
 from tensorflow.keras import layers, activations, Input
 import time
 import dxchange
-from IPython import display
 
 
 def nor_data(img):
@@ -21,7 +17,6 @@ def nor_data(img):
 
 def angles(nang, ang1=0., ang2=180.):
     return np.linspace(ang1 * np.pi / 180., ang2 * np.pi / 180., nang)
-
 
 def dense_norm(units, dropout, apply_batchnorm=True):
     initializer = tf.random_normal_initializer()
@@ -45,12 +40,12 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=True):
     result = tf.keras.Sequential()
     result.add(
         layers.Conv2D(filters, size, strides=strides, padding='same',
-                      kernel_initializer=initializer, use_bias=False))
+                      kernel_initializer=initializer, activation=tf.nn.elu))
 
     if apply_batchnorm:
         result.add(layers.BatchNormalization())
 
-    result.add(layers.LeakyReLU())
+    # result.add(layers.LeakyReLU())
 
     return result
 
@@ -74,26 +69,74 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
 
     return result
 
+#########################################
 
-def make_generator(inputs, conv_num, conv_size, dropout, px):
-    img_size = px
+# def make_generator(nang, img_size, conv_num, conv_size, dropout):
+#     fc_size = img_size ** 2
+#     inputs = Input(shape=(nang, img_size, 1))
+#     # inputs = tf.keras.layers.Input(shape=[img_size, img_size, 1])
+#     # initializer = tf.random_normal_initializer(0., 0.02)
+#     x = tf.keras.layers.Flatten()(inputs)
+#     x = dense_norm(conv_num * 4, dropout)(x)
+#     x = dense_norm(conv_num * 4, dropout)(x)
+#     x = dense_norm(conv_num * 4, dropout)(x)
+#     x = dense_norm(fc_size, dropout)(x)
+#     x = tf.reshape(x, shape=[-1, img_size, img_size, 1])
+#     x = conv2d_norm(conv_num, conv_size, 1)(x)
+#     x = conv2d_norm(conv_num, conv_size, 1)(x)
+#     x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
+#     x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
+#     x = conv2d_norm(1, conv_size, 1)(x)
+#
+#     return tf.keras.Model(inputs=inputs, outputs=x)
+
+
+def make_generator(nang, img_size, conv_num, conv_size, dropout):
+
     fc_size = img_size ** 2
-
+    inputs = Input(shape=(nang, img_size, 1))
     # inputs = tf.keras.layers.Input(shape=[img_size, img_size, 1])
-    initializer = tf.random_normal_initializer(0., 0.02)
     x = tf.keras.layers.Flatten()(inputs)
-    x = dense_norm(conv_num * 4, dropout)(x)
-    x = dense_norm(conv_num * 4, dropout)(x)
-    x = dense_norm(conv_num * 4, dropout)(x)
-    x = dense_norm(fc_size, dropout)(x)
+#     print(inputs.shape)
+    fc_stack = [
+        dense_norm(conv_num * 4, dropout),
+        dense_norm(conv_num * 4, dropout),
+        dense_norm(conv_num * 4, dropout),
+        dense_norm(fc_size, dropout),
+    ]
+
+    conv_stack = [
+        conv2d_norm(conv_num, conv_size, 1),
+        conv2d_norm(conv_num, conv_size, 1),
+        conv2d_norm(conv_num, conv_size, 1),
+
+    ]
+
+    dconv_stack = [
+        dconv2d_norm(conv_num, conv_size, 1),
+        dconv2d_norm(conv_num, conv_size, 1),
+        dconv2d_norm(conv_num , conv_size, 1),
+    ]
+
+
+    last = conv2d_norm(1, conv_size, 1)
+
+    # Fully connected layers through the model
+
+    for fc in fc_stack:
+        x = fc(x)
+
     x = tf.reshape(x, shape=[-1, img_size, img_size, 1])
-    x = conv2d_norm(conv_num, conv_size, 1)(x)
-    x = conv2d_norm(conv_num, conv_size, 1)(x)
-    x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
-    x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
-    x = conv2d_norm(1, conv_size, 1)(x)
+    # Convolutions
+    for conv in conv_stack:
+        x = conv(x)
+
+    for dconv in dconv_stack:
+        x = dconv(x)
+    x = last(x)
 
     return tf.keras.Model(inputs=inputs, outputs=x)
+
 
 def filter_net():
     inputs = tf.keras.layers.Input(shape=[256, 256, 3])
@@ -167,23 +210,18 @@ def discriminator_loss(real_output, fake_output):
                                                                        labels=tf.ones_like(real_output)))
     fake_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output,
                                                                        labels=tf.zeros_like(fake_output)))
-#     real_loss = cross_entropy(tf.ones_like(real_output), real_output)
-#     fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
     total_loss = real_loss + fake_loss
     return total_loss
 
 def generator_loss(fake_output, img_output, pred):
     gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output,
                                                                       labels=tf.ones_like(fake_output))) \
-               + tf.reduce_mean(tf.abs(img_output - pred)) * 10
+               + tf.reduce_mean(tf.abs(img_output - pred))*10
     return gen_loss
-
-
 
 def tfnor_data(img):
     img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
     return img
-
 
 def tomo_bp(sinoi, ang):
     prj = tfnor_data(sinoi)
@@ -198,7 +236,6 @@ def tomo_bp(sinoi, ang):
     bp = tf.reshape(bp, [1, bp.shape[0], bp.shape[1], bp.shape[2]])
     return bp
 
-
 # @tf.function
 def tomo_radon(rec, ang):
     nang = ang.shape[0]
@@ -210,7 +247,6 @@ def tomo_radon(rec, ang):
     sino = tf.transpose(sino, [2, 0, 1])
     sino = tf.reshape(sino, [sino.shape[0], sino.shape[1], sino.shape[2], 1])
     return sino
-
 
 # @tf.function
 def tomo_learn(sinoi, ang, px, reuse, conv_nb, conv_size, dropout, method):
@@ -231,13 +267,17 @@ def tomo_learn(sinoi, ang, px, reuse, conv_nb, conv_size, dropout, method):
     return sinop, recon
 
 @tf.function
-def recon_step(sino, ang, generator, discriminator, generator_optimizer,  discriminator_optimizer):
-#     noise = tf.random.normal([BATCH_SIZE, noise_dim])
-
+def recon_step(sino, ang, generator, discriminator, generator_optimizer, discriminator_optimizer):
+    # noise = tf.random.normal([1, 181, 366, 1])
+    # noise = tf.cast(noise, dtype=tf.float32)
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-        recon = generator(sino, training=True)
-#         tf.print(recon)
+        # tf.print(tf.reduce_min(sino), tf.reduce_max(sino))
+        recon = generator(sino)
+        # recon = generator(sino, training=True)
+        # tf.print(tf.reduce_min(recon), tf.reduce_max(recon))
+        recon = tfnor_data(recon)
         sino_rec = tomo_radon(recon, ang)
+        # tf.print(tf.reduce_min(sino_rec), tf.reduce_max(sino_rec))
         sino_rec = tfnor_data(sino_rec)
         real_output = discriminator(sino, training=True)
         fake_output = discriminator(sino_rec, training=True)
@@ -291,22 +331,38 @@ def update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss):
 def ganrec(sino_input, ang, num_iter):
     nang, px = sino_input.shape
     # init_recon_mointor(sino_input, px)
+    # plt.imshow(sino_input)
+    # plt.show()
     sino = np.reshape(sino_input, (1, nang, px, 1))
     sino = tf.cast(sino, dtype=tf.float32)
     sino = tfnor_data(sino)
     ang = tf.cast(ang, dtype=tf.float32)
-
-    inputs = Input(shape=(nang, px, 1))
-    generator = make_generator(inputs, 32, 3, 0.5, px)
+    generator = make_generator(nang, px, 64, 3, 0.25)
     discriminator = make_discriminator_model(nang, px)
     generator_optimizer = tf.keras.optimizers.Adam(1e-4)
-    discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+    discriminator_optimizer = tf.keras.optimizers.Adam(1e-5)
     checkpoint_dir = '/data/ganrec/training_checkpoints'
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
     checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                      discriminator_optimizer=discriminator_optimizer,
                                      generator=generator,
                                      discriminator=discriminator)
+
+    ############################################################
+    fig, axs = plt.subplots(2, 2, figsize=(16, 8))
+    im0 = axs[0, 0].imshow(sino_input, cmap='jet')
+    tx0 = axs[0, 0].set_title('Sinogram')
+    fig.colorbar(im0, ax=axs[0, 0])
+    tx1 = axs[1, 0].set_title('Difference of sinogram for iteration 0')
+    im1 = axs[1, 0].imshow(sino_input, cmap='jet')
+    fig.colorbar(im1, ax=axs[1, 0])
+    im2 = axs[0, 1].imshow(np.zeros((px, px)), cmap='jet')
+    fig.colorbar(im2, ax=axs[0, 1])
+    tx2 = axs[0, 1].set_title('Reconstruction')
+    xdata, plot_loss = [], []
+    im3, = axs[1, 1].plot(xdata, plot_loss)
+    tx3 = axs[1, 1].set_title('Generator loss')
+    plt.tight_layout()
 
     ###########################################################################
     for epoch in range(num_iter):
@@ -316,6 +372,7 @@ def ganrec(sino_input, ang, num_iter):
                                                      discriminator_optimizer)
 
         ##########################################################################
+
         # update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss)
         #############################################################################
         # Produce images for the GIF as you go
@@ -325,9 +382,27 @@ def ganrec(sino_input, ang, num_iter):
         #                              sino)
 
         # Save the model every 15 epochs
+        xdata.append(epoch)
+        plot_loss.append(g_loss.numpy())
         if (epoch + 1) % 100 == 0:
             checkpoint.save(file_prefix=checkpoint_prefix)
-        print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, g_loss.numpy(), d_loss.numpy()))
+
+            sino_plt = np.reshape(sino_rec, (nang, px))
+            sino_plt = np.abs(sino_plt - sino_input.reshape((nang, px)))
+            rec_plt = np.reshape(recon, (px, px))
+            tx1.set_text('Difference of sinogram for iteration {0}'.format(epoch))
+            vmax = np.max(sino_plt)
+            vmin = np.min(sino_plt)
+            im1.set_data(sino_plt)
+            im1.set_clim(vmin, vmax)
+            im2.set_data(rec_plt)
+            vmax = np.max(rec_plt)
+            vmin = np.min(rec_plt)
+            im2.set_clim(vmin, vmax)
+            im3.set_xdata(xdata)
+            im3.set_ydata(plot_loss)
+            plt.pause(0.1)
+            print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, g_loss.numpy(), d_loss.numpy()))
 
     return np.reshape(recon.numpy(), (px, px))
 
@@ -339,8 +414,8 @@ def main():
     slice = 100
     prj = data[:, slice, :]
     prj = nor_data(prj)
-    recon = ganrec(prj, theta, 100)
-    dxchange.write_tiff(recon, '/data/ganrec/test')
+    recon = ganrec(prj, theta, 2000)
+    dxchange.write_tiff(recon, '/data/ganrec/test', overwrite=True)
 
 
 if __name__ == "__main__":
