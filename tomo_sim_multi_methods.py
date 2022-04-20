@@ -2,7 +2,7 @@ from __future__ import  absolute_import, division, print_function
 import numpy as np
 import dxchange
 import time
-from ganrec2 import rec_gan, angles
+from xlearn.ganrec import rec_dcgan, rec_cost, angles
 # from xlearn.utils import nor_data, nor_prj, center
 
 
@@ -29,11 +29,11 @@ def main():
     theta = theta.astype('float32')
     prj = prj.astype('float32')
     start = time.time()
-    recon = rec_gan(prj, theta, save_wpath, num_steps=5000, cost_rate=10, method='fc', learning_rate=1e-3)
+    recon = rec_dcgan(prj, theta, save_wpath, num_steps=2000, cost_rate=10, method='fc', learning_rate=1e-3)
     end = time.time()
     print('The prediction runs for %s seconds' % (end - start))
     sname_xbic = sdir_ltp + "_ganrec_5000"
-    dxchange.write_tiff(np.reshape(recon,(256,256)), sname_xbic, dtype='float32')
+    # dxchange.write_tiff(np.reshape(recon,(256,256)), sname_xbic, dtype='float32')
     # start = time.time()
     # recon = rec_cost(prj, theta, save_wpath, num_steps=5000, method='fc', learning_rate=1e-3)
     # end = time.time()

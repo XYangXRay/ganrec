@@ -1,9 +1,9 @@
 import tensorflow as tf
+import tensorflow.keras as keras
 import tensorflow_addons as tfa
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-from tensorflow.keras import layers, activations, Input
+from tensorflow.keras import layers, Input
 import time
 import dxchange
 
@@ -15,8 +15,10 @@ def nor_data(img):
     img = (img - img.min()) / (img.max() - img.min())
     return img
 
+
 def angles(nang, ang1=0., ang2=180.):
     return np.linspace(ang1 * np.pi / 180., ang2 * np.pi / 180., nang)
+
 
 def dense_norm(units, dropout, apply_batchnorm=True):
     initializer = tf.random_normal_initializer()
@@ -69,6 +71,7 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
 
     return result
 
+
 #########################################
 
 # def make_generator(nang, img_size, conv_num, conv_size, dropout):
@@ -92,12 +95,11 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
 
 
 def make_generator(nang, img_size, conv_num, conv_size, dropout):
-
     fc_size = img_size ** 2
     inputs = Input(shape=(nang, img_size, 1))
     # inputs = tf.keras.layers.Input(shape=[img_size, img_size, 1])
     x = tf.keras.layers.Flatten()(inputs)
-#     print(inputs.shape)
+    #     print(inputs.shape)
     fc_stack = [
         dense_norm(conv_num * 4, dropout),
         dense_norm(conv_num * 4, dropout),
@@ -115,13 +117,10 @@ def make_generator(nang, img_size, conv_num, conv_size, dropout):
     dconv_stack = [
         dconv2d_norm(conv_num, conv_size, 1),
         dconv2d_norm(conv_num, conv_size, 1),
-        dconv2d_norm(conv_num , conv_size, 1),
+        dconv2d_norm(conv_num, conv_size, 1),
     ]
 
-
     last = conv2d_norm(1, conv_size, 1)
-
-    # Fully connected layers through the model
 
     for fc in fc_stack:
         x = fc(x)
@@ -189,29 +188,34 @@ def filter_net():
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-def make_discriminator_model(nang, px):
+def make_discriminator(nang, px):
     model = tf.keras.Sequential()
     model.add(layers.Conv2D(32, (5, 5), strides=(2, 2), padding='same',
-                                     input_shape=[nang, px, 1]))
+                            input_shape=[nang, px, 1]))
+    model.add(layers.Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.2))
 
     model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same'))
+    model.add(layers.Conv2D(64, (5, 5), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.2))
 
     model.add(layers.Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
+    model.add(layers.Conv2D(128, (3, 3), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.2))
 
     model.add(layers.Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
+    model.add(layers.Conv2D(128, (3, 3), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.3))
+    model.add(layers.Dropout(0.2))
 
     model.add(layers.Flatten())
     model.add(layers.Dense(1))
 
     return model
+
 
 def discriminator_loss(real_output, fake_output):
     real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_output,
@@ -221,15 +225,18 @@ def discriminator_loss(real_output, fake_output):
     total_loss = real_loss + fake_loss
     return total_loss
 
+
 def generator_loss(fake_output, img_output, pred):
     gen_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output,
                                                                       labels=tf.ones_like(fake_output))) \
-               + tf.reduce_mean(tf.abs(img_output - pred))*10
+               + tf.reduce_mean(tf.abs(img_output - pred)) * 10
     return gen_loss
+
 
 def tfnor_data(img):
     img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
     return img
+
 
 def tomo_bp(sinoi, ang):
     prj = tfnor_data(sinoi)
@@ -244,6 +251,7 @@ def tomo_bp(sinoi, ang):
     bp = tf.reshape(bp, [1, bp.shape[0], bp.shape[1], bp.shape[2]])
     return bp
 
+
 # @tf.function
 def tomo_radon(rec, ang):
     nang = ang.shape[0]
@@ -256,163 +264,162 @@ def tomo_radon(rec, ang):
     sino = tf.reshape(sino, [sino.shape[0], sino.shape[1], sino.shape[2], 1])
     return sino
 
-# @tf.function
-def tomo_learn(sinoi, ang, px, reuse, conv_nb, conv_size, dropout, method):
-    if method == 'backproj':
-        bp = tomo_bp(sinoi, ang)
-        bp = tfnor_data(bp)
-        bp = tf.reshape(bp, [bp.shape[0], bp.shape[1], bp.shape[2], 1])
-        recon = filter_net(bp, conv_nb, conv_size, dropout, px, reuse=reuse)
-    elif method == 'fc':
-        inputs = tf.convert_to_tensor(sinoi)
-        recon = mdnn_net(inputs)
-    else:
-        os.exit('Please provide a correct method. Options: backproj, conv1d, fc')
 
-    recon = tfnor_data(recon)
-    sinop = tomo_radon(recon, ang)
-    sinop = tfnor_data(sinop)
-    return sinop, recon
+class GANMonitor(keras.callbacks.Callback):
+    """A callback to generate and save images after each epoch"""
 
-@tf.function
-def recon_step(sino, ang, generator, discriminator, generator_optimizer, discriminator_optimizer):
-    # noise = tf.random.normal([1, 181, 366, 1])
-    # noise = tf.cast(noise, dtype=tf.float32)
-    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-        # tf.print(tf.reduce_min(sino), tf.reduce_max(sino))
-        recon = generator(sino)
-        # recon = generator(sino, training=True)
-        # tf.print(tf.reduce_min(recon), tf.reduce_max(recon))
-        recon = tfnor_data(recon)
-        sino_rec = tomo_radon(recon, ang)
-        # tf.print(tf.reduce_min(sino_rec), tf.reduce_max(sino_rec))
-        sino_rec = tfnor_data(sino_rec)
-        real_output = discriminator(sino, training=True)
-        fake_output = discriminator(sino_rec, training=True)
-        gen_loss = generator_loss(fake_output, sino, sino_rec)
-        disc_loss = discriminator_loss(real_output, fake_output)
+    def __init__(self, num_img=4):
+        self.num_img = num_img
 
-    gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
-    gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
+    def on_epoch_end(self, epoch, logs=None):
+        _, ax = plt.subplots(4, 2, figsize=(12, 12))
+        for i, img in enumerate(test_horses.take(self.num_img)):
+            prediction = self.model.gen_G(img)[0].numpy()
+            prediction = (prediction * 127.5 + 127.5).astype(np.uint8)
+            img = (img[0] * 127.5 + 127.5).numpy().astype(np.uint8)
 
-    generator_optimizer.apply_gradients(zip(gradients_of_generator, generator.trainable_variables))
-    discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
-    return recon, sino_rec, gen_loss, disc_loss
+            ax[i, 0].imshow(img)
+            ax[i, 1].imshow(prediction)
+            ax[i, 0].set_title("Input image")
+            ax[i, 1].set_title("Translated image")
+            ax[i, 0].axis("off")
+            ax[i, 1].axis("off")
+
+            prediction = keras.preprocessing.image.array_to_img(prediction)
+            prediction.save(
+                "generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch + 1)
+            )
+        plt.show()
+        plt.close()
 
 
-def init_recon_mointor(img, px):
-    fig, axs = plt.subplots(2, 2, figsize=(16, 8))
-    im0 = axs[0, 0].imshow(img, cmap='jet')
-    tx0 = axs[0, 0].set_title('Sinogram')
-    fig.colorbar(im0, ax=axs[0, 0])
-    tx1 = axs[1, 0].set_title('Difference of sinogram for iteration 0')
-    im1 = axs[1, 0].imshow(img, cmap='jet')
-    fig.colorbar(im1, ax=axs[1, 0])
-    im2 = axs[0, 1].imshow(np.zeros((px, px)), cmap='jet')
-    fig.colorbar(im2, ax=axs[0, 1])
-    tx2 = axs[0, 1].set_title('Reconstruction')
-    xdata, plot_loss = [], []
-    im3, = axs[1, 1].plot(xdata, plot_loss)
-    tx3 = axs[1, 1].set_title('Generator loss')
-    plt.tight_layout()
-def update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss):
-    xdata.append(epoch)
-    plot_loss.append(g_loss)
-    sino_plt = np.reshape(sino_rec, (nang, px))
-    sino_plt = np.abs(sino_plt - sino_input)
-    rec_plt = np.reshape(recon, (px, px))
-    tx1.set_text('Difference of sinogram for iteration {0}'.format(epoch))
-    vmax = np.max(sino_plt)
-    vmin = np.min(sino_plt)
-    im1.set_data(sino_plt)
-    im1.set_clim(vmin, vmax)
-    im2.set_data(rec_plt)
-    vmax = np.max(rec_plt)
-    vmin = np.min(rec_plt)
-    im2.set_clim(vmin, vmax)
-    im3.set_xdata(xdata)
-    im3.set_ydata(plot_loss)
-    plt.pause(0.1)
+class GANtomo:
+    def __init__(self, prj_input, angle, iter_num):
+        self.prj_input = prj_input
+        self.angle = angle
+        self.iter_num = iter_num
+        self.conv_num = 32
+        self.conv_size = 3
+        self.dropout = 0.25
+        self.l_ratio = 10
+        self.g_learning_rate = 1e-3
+        self.d_learning_rate = 1e-4
+        self.discriminator_optimizer = None
+        self.generator_optimizer = None
+        self.discriminator = None
+        self.generator = None
 
+    def make_model(self):
+        self.generator = make_generator(self.prj_input.shape[0],
+                                        self.prj_input.shape[1],
+                                        self.conv_num,
+                                        self.conv_size,
+                                        self.dropout)
+        self.discriminator = make_discriminator(self.prj_input.shape[0],
+                                                self.prj_input.shape[1])
+        self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
+        self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
 
+    @tf.function
+    def train_step(self, prj, ang):
+        # noise = tf.random.normal([1, 181, 366, 1])
+        # noise = tf.cast(noise, dtype=tf.float32)
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+            # tf.print(tf.reduce_min(sino), tf.reduce_max(sino))
+            recon = self.generator(prj)
+            # recon = generator(sino, training=True)
+            # tf.print(tf.reduce_min(recon), tf.reduce_max(recon))
+            recon = tfnor_data(recon)
+            prj_rec = tomo_radon(recon, ang)
+            # tf.print(tf.reduce_min(sino_rec), tf.reduce_max(sino_rec))
+            prj_rec = tfnor_data(prj_rec)
+            real_output = self.discriminator(prj, training=True)
+            fake_output = self.discriminator(prj_rec, training=True)
+            g_loss = generator_loss(fake_output, prj, prj_rec)
+            d_loss = discriminator_loss(real_output, fake_output)
 
-def ganrec(sino_input, ang, num_iter):
-    nang, px = sino_input.shape
-    # init_recon_mointor(sino_input, px)
-    # plt.imshow(sino_input)
-    # plt.show()
-    sino = np.reshape(sino_input, (1, nang, px, 1))
-    sino = tf.cast(sino, dtype=tf.float32)
-    sino = tfnor_data(sino)
-    ang = tf.cast(ang, dtype=tf.float32)
-    generator = make_generator(nang, px, 32, 3, 0.25)
-    discriminator = make_discriminator_model(nang, px)
-    generator_optimizer = tf.keras.optimizers.Adam(1e-3)
-    discriminator_optimizer = tf.keras.optimizers.Adam(1e-5)
-    checkpoint_dir = '/data/ganrec/training_checkpoints'
-    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                     discriminator_optimizer=discriminator_optimizer,
-                                     generator=generator,
-                                     discriminator=discriminator)
+        gradients_of_generator = gen_tape.gradient(g_loss,
+                                                   self.generator.trainable_variables)
+        gradients_of_discriminator = disc_tape.gradient(d_loss,
+                                                        self.discriminator.trainable_variables)
 
-    ############################################################
-    fig, axs = plt.subplots(2, 2, figsize=(16, 8))
-    im0 = axs[0, 0].imshow(sino_input, cmap='gray')
-    tx0 = axs[0, 0].set_title('Sinogram')
-    fig.colorbar(im0, ax=axs[0, 0])
-    tx1 = axs[1, 0].set_title('Difference of sinogram for iteration 0')
-    im1 = axs[1, 0].imshow(sino_input, cmap='jet')
-    fig.colorbar(im1, ax=axs[1, 0])
-    im2 = axs[0, 1].imshow(np.zeros((px, px)), cmap='gray')
-    fig.colorbar(im2, ax=axs[0, 1])
-    tx2 = axs[0, 1].set_title('Reconstruction')
-    xdata, plot_loss = [], []
-    im3, = axs[1, 1].plot(xdata, plot_loss)
-    tx3 = axs[1, 1].set_title('Generator loss')
-    plt.tight_layout()
+        self.generator_optimizer.apply_gradients(zip(gradients_of_generator,
+                                                     self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator,
+                                                         self.discriminator.trainable_variables))
+        return recon, prj_rec, g_loss, d_loss
 
-    ###########################################################################
-    for epoch in range(num_iter):
+    def recon(self):
+        nang, px = self.prj_input.shape
+        prj = np.reshape(self.prj_input, (1, nang, px, 1))
+        prj = tf.cast(prj, dtype=tf.float32)
+        prj = tfnor_data(prj)
+        ang = tf.cast(self.angle, dtype=tf.float32)
+        self.make_model()
 
-        recon, sino_rec, g_loss, d_loss = recon_step(sino, ang, generator, discriminator,
-                                                     generator_optimizer,
-                                                     discriminator_optimizer)
+        # checkpoint_dir = '/data/ganrec/training_checkpoints'
+        # checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+        # checkpoint = tf.train.Checkpoint(generator_optimizer=self.generator_optimizer,
+        #                                  discriminator_optimizer=self.discriminator_optimizer,
+        #                                  generator=self.generator,
+        #                                  discriminator=self.discriminator)
+        #
+        # ############################################################
+        fig, axs = plt.subplots(2, 2, figsize=(16, 8))
+        im0 = axs[0, 0].imshow(self.prj_input, cmap='gray')
+        tx0 = axs[0, 0].set_title('Sinogram')
+        fig.colorbar(im0, ax=axs[0, 0])
+        tx1 = axs[1, 0].set_title('Difference of sinogram for iteration 0')
+        im1 = axs[1, 0].imshow(self.prj_input, cmap='jet')
+        fig.colorbar(im1, ax=axs[1, 0])
+        im2 = axs[0, 1].imshow(np.zeros((px, px)), cmap='gray')
+        fig.colorbar(im2, ax=axs[0, 1])
+        tx2 = axs[0, 1].set_title('Reconstruction')
+        xdata, plot_loss = [], []
+        im3, = axs[1, 1].plot(xdata, plot_loss)
+        tx3 = axs[1, 1].set_title('Generator loss')
+        plt.tight_layout()
 
-        ##########################################################################
+        ###########################################################################
+        for epoch in range(self.iter_num):
 
-        # update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss)
-        #############################################################################
-        # Produce images for the GIF as you go
-        #         display.clear_output(wait=True)
-        #         generate_and_save_images(generator,
-        #                              num_iter + 1,
-        #                              sino)
+            recon, prj_rec, g_loss, d_loss = self.train_step(prj, ang)
 
-        # Save the model every 15 epochs
-        xdata.append(epoch)
-        plot_loss.append(g_loss.numpy())
-        if (epoch + 1) % 100 == 0:
-            # checkpoint.save(file_prefix=checkpoint_prefix)
+            ##########################################################################
 
-            sino_plt = np.reshape(sino_rec, (nang, px))
-            sino_plt = np.abs(sino_plt - sino_input.reshape((nang, px)))
-            rec_plt = np.reshape(recon, (px, px))
-            tx1.set_text('Difference of sinogram for iteration {0}'.format(epoch))
-            vmax = np.max(sino_plt)
-            vmin = np.min(sino_plt)
-            im1.set_data(sino_plt)
-            im1.set_clim(vmin, vmax)
-            im2.set_data(rec_plt)
-            vmax = np.max(rec_plt)
-            vmin = np.min(rec_plt)
-            im2.set_clim(vmin, vmax)
-            im3.set_xdata(xdata)
-            im3.set_ydata(plot_loss)
-            plt.pause(0.1)
-            print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, g_loss.numpy(), d_loss.numpy()))
+            # update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss)
+            #############################################################################
+            # Produce images for the GIF as you go
+            #         display.clear_output(wait=True)
+            #         generate_and_save_images(generator,
+            #                              num_iter + 1,
+            #                              sino)
 
-    return np.reshape(recon.numpy(), (px, px))
+            # Save the model every 15 epochs
+            xdata.append(epoch)
+            plot_loss.append(g_loss.numpy())
+            if (epoch + 1) % 100 == 0:
+                # checkpoint.save(file_prefix=checkpoint_prefix)
+
+                sino_plt = np.reshape(prj_rec, (nang, px))
+                sino_plt = np.abs(sino_plt - self.prj_input.reshape((nang, px)))
+                rec_plt = np.reshape(recon, (px, px))
+                tx1.set_text('Difference of sinogram for iteration {0}'.format(epoch))
+                vmax = np.max(sino_plt)
+                vmin = np.min(sino_plt)
+                im1.set_data(sino_plt)
+                im1.set_clim(vmin, vmax)
+                im2.set_data(rec_plt)
+                vmax = np.max(rec_plt)
+                vmin = np.min(rec_plt)
+                im2.set_clim(vmin, vmax)
+                im3.set_xdata(xdata)
+                im3.set_ydata(plot_loss)
+                plt.pause(0.1)
+                print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, g_loss.numpy(), d_loss.numpy()))
+
+        return np.reshape(recon.numpy(), (px, px))
+
 
 def main():
     fname_data = '/data/ganrec/prj_shale.tiff'
@@ -420,13 +427,15 @@ def main():
     nang, nslice, px = data.shape
     theta = angles(nang, ang1=0, ang2=180)
     slice = 100
+    iter_num = 2000
     prj = data[:, slice, :]
     prj = nor_data(prj)
+    gan_tomo_object = GANtomo(prj, theta, iter_num)
     start = time.time()
-    recon = ganrec(prj, theta, 2000)
+    rec = gan_tomo_object.recon()
     end = time.time()
-    print('Running time is {}'.format(end-start))
-    dxchange.write_tiff(recon, '/data/ganrec/test', overwrite=True)
+    print('Running time is {}'.format(end - start))
+    dxchange.write_tiff(rec, '/data/ganrec/test', overwrite=True)
 
 
 if __name__ == "__main__":
