@@ -2,6 +2,9 @@ import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow_addons as tfa
 import matplotlib.pyplot as plt
+import plotly.graph_objs as go
+import plotly.express as xp
+from plotly.subplots import make_subplots
 import numpy as np
 from tensorflow.keras import layers, Input
 import time
@@ -71,56 +74,32 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
 
     return result
 
-
-#########################################
-
-# def make_generator(nang, img_size, conv_num, conv_size, dropout):
-#     fc_size = img_size ** 2
-#     inputs = Input(shape=(nang, img_size, 1))
-#     # inputs = tf.keras.layers.Input(shape=[img_size, img_size, 1])
-#     # initializer = tf.random_normal_initializer(0., 0.02)
-#     x = tf.keras.layers.Flatten()(inputs)
-#     x = dense_norm(conv_num * 4, dropout)(x)
-#     x = dense_norm(conv_num * 4, dropout)(x)
-#     x = dense_norm(conv_num * 4, dropout)(x)
-#     x = dense_norm(fc_size, dropout)(x)
-#     x = tf.reshape(x, shape=[-1, img_size, img_size, 1])
-#     x = conv2d_norm(conv_num, conv_size, 1)(x)
-#     x = conv2d_norm(conv_num, conv_size, 1)(x)
-#     x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
-#     x = conv2d_norm(conv_num * 2, conv_size, 1)(x)
-#     x = conv2d_norm(1, conv_size, 1)(x)
-#
-#     return tf.keras.Model(inputs=inputs, outputs=x)
-
-
 def make_generator(nang, img_size, conv_num, conv_size, dropout):
+    units = 128
     fc_size = img_size ** 2
     inputs = Input(shape=(nang, img_size, 1))
-    # inputs = tf.keras.layers.Input(shape=[img_size, img_size, 1])
     x = tf.keras.layers.Flatten()(inputs)
-    #     print(inputs.shape)
     fc_stack = [
-        dense_norm(conv_num * 4, dropout),
-        dense_norm(conv_num * 4, dropout),
-        dense_norm(conv_num * 4, dropout),
-        dense_norm(fc_size, dropout),
+        dense_norm(units, dropout),
+        dense_norm(units, dropout),
+        dense_norm(units, dropout),
+        dense_norm(fc_size, 0),
     ]
 
     conv_stack = [
-        conv2d_norm(conv_num, conv_size, 1),
-        conv2d_norm(conv_num, conv_size, 1),
+        conv2d_norm(conv_num, conv_size+2, 1),
+        conv2d_norm(conv_num, conv_size+2, 1),
         conv2d_norm(conv_num, conv_size, 1),
 
     ]
 
     dconv_stack = [
-        dconv2d_norm(conv_num, conv_size, 1),
-        dconv2d_norm(conv_num, conv_size, 1),
+        dconv2d_norm(conv_num, conv_size+2, 1),
+        dconv2d_norm(conv_num, conv_size+2, 1),
         dconv2d_norm(conv_num, conv_size, 1),
     ]
 
-    last = conv2d_norm(1, conv_size, 1)
+    last = conv2d_norm(1, 3, 1)
 
     for fc in fc_stack:
         x = fc(x)
@@ -190,24 +169,24 @@ def filter_net():
 
 def make_discriminator(nang, px):
     model = tf.keras.Sequential()
-    model.add(layers.Conv2D(32, (5, 5), strides=(2, 2), padding='same',
+    model.add(layers.Conv2D(16, (5, 5), strides=(2, 2), padding='same',
                             input_shape=[nang, px, 1]))
-    model.add(layers.Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
+    model.add(layers.Conv2D(16, (5, 5), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.2))
 
-    model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same'))
-    model.add(layers.Conv2D(64, (5, 5), strides=(1, 1), padding='same'))
+    model.add(layers.Conv2D(32, (5, 5), strides=(2, 2), padding='same'))
+    # model.add(layers.Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.2))
 
-    model.add(layers.Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
-    model.add(layers.Conv2D(128, (3, 3), strides=(1, 1), padding='same'))
+    model.add(layers.Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
+    # model.add(layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.2))
 
-    model.add(layers.Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
-    model.add(layers.Conv2D(128, (3, 3), strides=(1, 1), padding='same'))
+    model.add(layers.Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
+    # model.add(layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
     model.add(layers.LeakyReLU())
     model.add(layers.Dropout(0.2))
 
@@ -265,32 +244,38 @@ def tomo_radon(rec, ang):
     return sino
 
 
-class GANMonitor(keras.callbacks.Callback):
-    """A callback to generate and save images after each epoch"""
+class RECONmonitor:
+    def __init__(self):
+        self.fig, self.axs = plt.subplots(2, 2, figsize=(16, 8))
 
-    def __init__(self, num_img=4):
-        self.num_img = num_img
+    def initial_plot(self, img_input):
+        _, px = img_input.shape
+        self.im0 = self.axs[0, 0].imshow(img_input, cmap='gray')
+        self.axs[0, 0].set_title('Sinogram')
+        self.fig.colorbar(self.im0, ax=self.axs[0, 0])
+        self.im1 = self.axs[1, 0].imshow(img_input, cmap='jet')
+        self.tx1 = self.axs[1, 0].set_title('Difference of sinogram for iteration 0')
+        self.fig.colorbar(self.im1, ax=self.axs[1, 0])
+        self.im2 = self.axs[0, 1].imshow(np.zeros((px, px)), cmap='gray')
+        self.fig.colorbar(self.im2, ax=self.axs[0, 1])
+        self.axs[0, 1].set_title('Reconstruction')
+        self.im3, = self.axs[1, 1].plot([0, 1], [1, 1], '-')
+        self.axs[1, 1].set_title('Generator loss')
+        plt.tight_layout()
 
-    def on_epoch_end(self, epoch, logs=None):
-        _, ax = plt.subplots(4, 2, figsize=(12, 12))
-        for i, img in enumerate(test_horses.take(self.num_img)):
-            prediction = self.model.gen_G(img)[0].numpy()
-            prediction = (prediction * 127.5 + 127.5).astype(np.uint8)
-            img = (img[0] * 127.5 + 127.5).numpy().astype(np.uint8)
-
-            ax[i, 0].imshow(img)
-            ax[i, 1].imshow(prediction)
-            ax[i, 0].set_title("Input image")
-            ax[i, 1].set_title("Translated image")
-            ax[i, 0].axis("off")
-            ax[i, 1].axis("off")
-
-            prediction = keras.preprocessing.image.array_to_img(prediction)
-            prediction.save(
-                "generated_img_{i}_{epoch}.png".format(i=i, epoch=epoch + 1)
-            )
-        plt.show()
-        plt.close()
+    def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss):
+        self.tx1.set_text('Difference of sinogram for iteration {0}'.format(epoch))
+        vmax = np.max(img_diff)
+        vmin = np.min(img_diff)
+        self.im1.set_data(img_diff)
+        self.im1.set_clim(vmin, vmax)
+        self.im2.set_data(img_rec)
+        vmax = np.max(img_rec)
+        vmin = np.min(img_rec)
+        self.im2.set_clim(vmin, vmax)
+        self.im3.set_xdata(plot_x)
+        self.im3.set_ydata(plot_loss)
+        plt.pause(0.1)
 
 
 class GANtomo:
@@ -302,7 +287,7 @@ class GANtomo:
         self.conv_size = 3
         self.dropout = 0.25
         self.l_ratio = 10
-        self.g_learning_rate = 1e-3
+        self.g_learning_rate = 5e-4
         self.d_learning_rate = 1e-4
         self.discriminator_optimizer = None
         self.generator_optimizer = None
@@ -365,57 +350,23 @@ class GANtomo:
         #                                  discriminator=self.discriminator)
         #
         # ############################################################
-        fig, axs = plt.subplots(2, 2, figsize=(16, 8))
-        im0 = axs[0, 0].imshow(self.prj_input, cmap='gray')
-        tx0 = axs[0, 0].set_title('Sinogram')
-        fig.colorbar(im0, ax=axs[0, 0])
-        tx1 = axs[1, 0].set_title('Difference of sinogram for iteration 0')
-        im1 = axs[1, 0].imshow(self.prj_input, cmap='jet')
-        fig.colorbar(im1, ax=axs[1, 0])
-        im2 = axs[0, 1].imshow(np.zeros((px, px)), cmap='gray')
-        fig.colorbar(im2, ax=axs[0, 1])
-        tx2 = axs[0, 1].set_title('Reconstruction')
-        xdata, plot_loss = [], []
-        im3, = axs[1, 1].plot(xdata, plot_loss)
-        tx3 = axs[1, 1].set_title('Generator loss')
-        plt.tight_layout()
 
+        plot_x, plot_loss = [], []
+        recon_monitor = RECONmonitor()
+        recon_monitor.initial_plot(self.prj_input)
         ###########################################################################
         for epoch in range(self.iter_num):
 
             recon, prj_rec, g_loss, d_loss = self.train_step(prj, ang)
-
-            ##########################################################################
-
-            # update_recon_monitor(epoch, sino_rec, sino_input, recon, xdata, plot_loss)
-            #############################################################################
-            # Produce images for the GIF as you go
-            #         display.clear_output(wait=True)
-            #         generate_and_save_images(generator,
-            #                              num_iter + 1,
-            #                              sino)
-
-            # Save the model every 15 epochs
-            xdata.append(epoch)
+            plot_x.append(epoch)
             plot_loss.append(g_loss.numpy())
             if (epoch + 1) % 100 == 0:
                 # checkpoint.save(file_prefix=checkpoint_prefix)
 
-                sino_plt = np.reshape(prj_rec, (nang, px))
-                sino_plt = np.abs(sino_plt - self.prj_input.reshape((nang, px)))
+                prj_rec = np.reshape(prj_rec, (nang, px))
+                prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
                 rec_plt = np.reshape(recon, (px, px))
-                tx1.set_text('Difference of sinogram for iteration {0}'.format(epoch))
-                vmax = np.max(sino_plt)
-                vmin = np.min(sino_plt)
-                im1.set_data(sino_plt)
-                im1.set_clim(vmin, vmax)
-                im2.set_data(rec_plt)
-                vmax = np.max(rec_plt)
-                vmin = np.min(rec_plt)
-                im2.set_clim(vmin, vmax)
-                im3.set_xdata(xdata)
-                im3.set_ydata(plot_loss)
-                plt.pause(0.1)
+                recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, g_loss.numpy(), d_loss.numpy()))
 
         return np.reshape(recon.numpy(), (px, px))
