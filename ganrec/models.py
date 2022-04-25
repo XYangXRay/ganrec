@@ -54,10 +54,10 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
     return result
 
 
-def make_generator(nang, img_size, conv_num, conv_size, dropout):
+def make_generator(img_h, img_w, conv_num, conv_size, dropout):
     units = 128
-    fc_size = img_size ** 2
-    inputs = Input(shape=(nang, img_size, 1))
+    fc_size = img_w ** 2
+    inputs = Input(shape=(img_h, img_w, 1))
     x = tf.keras.layers.Flatten()(inputs)
     fc_stack = [
         dense_norm(units, dropout),
@@ -84,7 +84,7 @@ def make_generator(nang, img_size, conv_num, conv_size, dropout):
     for fc in fc_stack:
         x = fc(x)
 
-    x = tf.reshape(x, shape=[-1, img_size, img_size, 1])
+    x = tf.reshape(x, shape=[-1, img_w, img_w, 1])
     # Convolutions
     for conv in conv_stack:
         x = conv(x)
@@ -96,9 +96,8 @@ def make_generator(nang, img_size, conv_num, conv_size, dropout):
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
-def filter_net():
-    inputs = tf.keras.layers.Input(shape=[256, 256, 3])
-
+def make_filter(img_h, img_w):
+    inputs = Input(shape=[img_h, img_w, 1])
     down_stack = [
         conv2d_norm(64, 4, 2, apply_batchnorm=False),  # (batch_size, 128, 128, 64)
         conv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 128)

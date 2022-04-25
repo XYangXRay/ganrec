@@ -14,10 +14,10 @@ def main():
     prj = nor_data(data)
     gan_tomo_object = GANtomo(prj, theta, iter_num)
     start = time.time()
-    rec = gan_tomo_object.recon()
+    rec = gan_tomo_object.recon
     end = time.time()
     print('Running time is {}'.format(end - start))
-    dxchange.write_tiff(rec, '/data/ganrec/test', overwrite=True)
+    dxchange.write_tiff(rec.reshape((px, px)), '/data/ganrec/test_avg1', overwrite=True)
 
 
 if __name__ == "__main__":
