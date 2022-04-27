@@ -54,7 +54,7 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
     return result
 
 
-def make_generator(img_h, img_w, conv_num, conv_size, dropout):
+def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
     fc_size = img_w ** 2
     inputs = Input(shape=(img_h, img_w, 1))
@@ -79,7 +79,7 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout):
         dconv2d_norm(conv_num, conv_size, 1),
     ]
 
-    last = conv2d_norm(1, 3, 1)
+    last = conv2d_norm(output_num, 3, 1)
 
     for fc in fc_stack:
         x = fc(x)
@@ -99,32 +99,32 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout):
 def make_filter(img_h, img_w):
     inputs = Input(shape=[img_h, img_w, 1])
     down_stack = [
-        conv2d_norm(64, 4, 2, apply_batchnorm=False),  # (batch_size, 128, 128, 64)
-        conv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 128)
-        conv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 256)
-        conv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 512)
-        conv2d_norm(512, 4, 2),  # (batch_size, 8, 8, 512)
-        conv2d_norm(512, 4, 2),  # (batch_size, 4, 4, 512)
-        conv2d_norm(512, 4, 2),  # (batch_size, 2, 2, 512)
-        conv2d_norm(512, 4, 2),  # (batch_size, 1, 1, 512)
+        conv2d_norm(32, 3, 1, apply_batchnorm=False),  # (batch_size, 128, 128, 64)
+        # conv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 128)
+        # conv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 256)
+        # conv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 512)
+        # conv2d_norm(512, 4, 2),  # (batch_size, 8, 8, 512)
+        # conv2d_norm(512, 4, 2),  # (batch_size, 4, 4, 512)
+        # conv2d_norm(512, 4, 2),  # (batch_size, 2, 2, 512)
+        # conv2d_norm(512, 4, 2),  # (batch_size, 1, 1, 512)
     ]
 
     up_stack = [
-        dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 2, 2, 1024)
-        dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 4, 4, 1024)
-        dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 8, 8, 1024)
-        dconv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 1024)
-        dconv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 512)
-        dconv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 256)
-        dconv2d_norm(64, 4, 2),  # (batch_size, 128, 128, 128)
+        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 2, 2, 1024)
+        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 4, 4, 1024)
+        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 8, 8, 1024)
+        # dconv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 1024)
+        # dconv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 512)
+        # dconv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 256)
+        dconv2d_norm(32, 3, 1),  # (batch_size, 128, 128, 128)
     ]
-
-    initializer = tf.random_normal_initializer(0., 0.02)
-    last = tf.keras.layers.Conv2DTranspose(1, 4,
-                                           strides=2,
-                                           padding='same',
-                                           kernel_initializer=initializer,
-                                           activation='tanh')  # (batch_size, 256, 256, 3)
+    last = conv2d_norm(1, 3, 1)
+    # initializer = tf.random_normal_initializer(0., 0.02)
+    # last = tf.keras.layers.Conv2DTranspose(1, 3,
+    #                                        strides=1,
+    #                                        padding='same',
+    #                                        kernel_initializer=initializer,
+    #                                        activation='tanh')  # (batch_size, 256, 256, 3)
 
     x = inputs
 
@@ -139,7 +139,7 @@ def make_filter(img_h, img_w):
     # Upsampling and establishing the skip connections
     for up, skip in zip(up_stack, skips):
         x = up(x)
-        x = tf.keras.layers.Concatenate()([x, skip])
+        # x = tf.keras.layers.Concatenate()([x, skip])
 
     x = last(x)
 
