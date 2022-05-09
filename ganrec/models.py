@@ -99,7 +99,9 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
 def make_filter(img_h, img_w):
     inputs = Input(shape=[img_h, img_w, 1])
     down_stack = [
-        conv2d_norm(32, 3, 1, apply_batchnorm=False),  # (batch_size, 128, 128, 64)
+        conv2d_norm(16, 3, 1),  # (batch_size, 128, 128, 64)
+        conv2d_norm(16, 3, 1),
+        # conv2d_norm(16, 3, 1),
         # conv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 128)
         # conv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 256)
         # conv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 512)
@@ -116,7 +118,8 @@ def make_filter(img_h, img_w):
         # dconv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 1024)
         # dconv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 512)
         # dconv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 256)
-        dconv2d_norm(32, 3, 1),  # (batch_size, 128, 128, 128)
+        dconv2d_norm(16, 3, 1),  # (batch_size, 128, 128, 128)
+        dconv2d_norm(16, 3, 1)
     ]
     last = conv2d_norm(1, 3, 1)
     # initializer = tf.random_normal_initializer(0., 0.02)

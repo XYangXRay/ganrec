@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
 import numpy as np
+
 from ganrec.models import make_generator, make_discriminator, make_filter
 from ganrec.utils import RECONmonitor, ffactor
 
@@ -17,6 +18,9 @@ def discriminator_loss(real_output, fake_output):
 
 def l1_loss(img1, img2):
     return tf.reduce_mean(tf.abs(img1 - img2))
+def l2_loss(img1, img2):
+    return tf.square(tf.reduce_mean(tf.abs(img1-img2)))
+
 
 
 # @tf.function
@@ -31,7 +35,8 @@ def generator_loss(fake_output, img_output, pred, l1_ratio):
 def filer_loss(fake_output, img_output, img_filter):
     f_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output,
                                                                     labels=tf.ones_like(fake_output))) + \
-             l1_loss(img_output, img_filter) * 100
+              l1_loss(img_output, img_filter) *10
+              # l1_loss(img_output, img_filter) * 10
     return f_loss
 
 
@@ -117,17 +122,23 @@ def phase_fraunhofer(phase, absorption):
 
 
 class GANtomo:
-    def __init__(self, prj_input, angle, iter_num):
+    def __init__(self, prj_input, angle, **kwargs):
+        tomo_args = _get_GANtomo_kwargs()
+        tomo_args.update(**kwargs)
+        super(GANtomo, self).__init__()
         self.prj_input = prj_input
         self.angle = angle
-        self.iter_num = iter_num
-        self.conv_num = 32
-        self.conv_size = 3
-        self.dropout = 0.25
-        self.l1_ratio = 10
-        self.g_learning_rate = 5e-4
-        self.d_learning_rate = 1e-4
-        self.recon_monitor = True
+        self.iter_num = tomo_args['iter_num']
+        self.conv_num = tomo_args['conv_num']
+        self.conv_size = tomo_args['conv_size']
+        self.dropout = tomo_args['dropout']
+        self.l1_ratio = tomo_args['l1_ratio']
+        self.g_learning_rate = tomo_args['g_learning_rate']
+        self.d_learning_rate = tomo_args['d_learning_rate']
+        self.save_wpath = tomo_args['save_wpath']
+        self.init_wpath = tomo_args['init_wpath']
+        self.init_model = tomo_args['init_model']
+        self.recon_monitor = tomo_args['recon_monitor']
         self.filter = None
         self.generator = None
         self.discriminator = None
@@ -146,9 +157,11 @@ class GANtomo:
                                         1)
         self.discriminator = make_discriminator(self.prj_input.shape[0],
                                                 self.prj_input.shape[1])
-        self.filter_optimizer = tf.keras.optimizers.Adam(5e-3)
+        self.filter_optimizer = tf.keras.optimizers.Adam(5e-5)
         self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
+        self.generator.compile()
+        self.discriminator.compile()
 
     def make_chechpoints(self):
         checkpoint_dir = '/data/ganrec/training_checkpoints'
@@ -185,7 +198,7 @@ class GANtomo:
                 'g_loss': g_loss,
                 'd_loss': d_loss}
 
-    def train_step_filter(self, prj, ang):
+    def recon_step_filter(self, prj, ang):
         with tf.GradientTape() as filter_tape, tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             # tf.print(tf.reduce_min(sino), tf.reduce_max(sino))
             prj_filter = self.filter(prj)
@@ -198,7 +211,7 @@ class GANtomo:
             filter_output = self.discriminator(prj_filter, training=True)
             fake_output = self.discriminator(prj_rec, training=True)
             f_loss = filer_loss(filter_output, prj, prj_filter)
-            g_loss = generator_loss(fake_output, prj_filter, prj_rec)
+            g_loss = generator_loss(fake_output, prj_filter, prj_rec, self.l1_ratio)
             d_loss = discriminator_loss(real_output, fake_output)
         gradients_of_filter = filter_tape.gradient(f_loss,
                                                    self.filter.trainable_variables)
@@ -212,7 +225,11 @@ class GANtomo:
                                                      self.generator.trainable_variables))
         self.discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator,
                                                          self.discriminator.trainable_variables))
-        return recon, prj_rec, g_loss, d_loss
+        return {'recon': recon,
+                'prj_filter': prj_filter,
+                'prj_rec': prj_rec,
+                'g_loss': g_loss,
+                'd_loss': d_loss}
 
     @property
     def recon(self):
@@ -222,6 +239,10 @@ class GANtomo:
         prj = tfnor_data(prj)
         ang = tf.cast(self.angle, dtype=tf.float32)
         self.make_model()
+        if self.init_wpath:
+            self.generator.load_weights(self.init_wpath+'generator.h5')
+            print('generator is initilized')
+            self.discriminator.load_weights(self.init_wpath+'discriminator.h5')
         recon = np.zeros((self.iter_num, px, px, 1))
         gen_loss = np.zeros((self.iter_num))
 
@@ -239,6 +260,7 @@ class GANtomo:
 
             # recon[epoch, :, :, :], prj_rec, gen_loss[epoch], d_loss = self.recon_step(prj, ang)
             step_result = self.recon_step(prj, ang)
+            # step_result = self.recon_step_filter(prj, ang)
             recon[epoch, :, :, :] = step_result['recon']
             gen_loss[epoch] = step_result['g_loss']
             # recon[epoch, :, :, :], prj_rec, gen_loss[epoch], d_loss = self.train_step_filter(prj, ang)
@@ -256,6 +278,10 @@ class GANtomo:
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
                                                                            step_result['d_loss'].numpy()))
+            # plt.close()
+        if self.save_wpath != None:
+            self.generator.save(self.save_wpath+'generator.h5')
+            self.discriminator.save(self.save_wpath+'discriminator.h5')
         return recon[epoch]
         # return avg_results(recon, gen_loss)
 
@@ -410,3 +436,18 @@ class GANphase:
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, gen_loss[epoch], d_loss.numpy()))
         return phase[epoch]
         # return avg_results(recon, gen_loss)
+
+def _get_GANtomo_kwargs():
+    return{
+        'init_num': 1000,
+        'conv_num': 32,
+        'conv_size': 2,
+        'dropout': 0.25,
+        'l1_ratio': 10,
+        'g_learning_rate': 3e-4,
+        'd_learning_rate': 1e-6,
+        'save_wpath': None,
+        'init_wpath': None,
+        'init_model': False,
+        'recon_monitor': True,
+    }
