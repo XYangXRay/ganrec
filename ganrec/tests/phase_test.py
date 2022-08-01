@@ -12,7 +12,7 @@ def main():
     data = dxchange.read_tiff(fname_data)
     px, _ = data.shape
     data = nor_phase(data)
-    gan_phase_object = GANphase(data, energy, z, pv,  iter_num)
+    gan_phase_object = GANphase(data, energy, z, pv)
     start = time.time()
     rec = gan_phase_object.recon
     end = time.time()

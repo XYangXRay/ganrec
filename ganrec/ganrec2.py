@@ -287,21 +287,27 @@ class GANtomo:
 
 
 class GANphase:
-    def __init__(self, i_input, energy, z, pv, iter_num):
+    def __init__(self, i_input, energy, z, pv, **kwargs):
+        phase_args = _get_GANphase_kwargs()
+        phase_args.update(**kwargs)
+        super(GANphase, self).__init__()
         self.i_input = i_input
         self.px, _ = i_input.shape
         self.energy = energy
         self.z = z
         self.pv = pv
-        self.iter_num = iter_num
-        self.conv_num = 32
-        self.conv_size = 3
-        self.dropout = 0.25
-        self.l1_ratio = 100
-        self.g_learning_rate = 5e-4
-        self.d_learning_rate = 1e-4
-        self.phase_only = True
-        self.recon_monitor = True
+        self.iter_num = phase_args['iter_num']
+        self.conv_num = phase_args['conv_num']
+        self.conv_size = phase_args['conv_size']
+        self.dropout = phase_args['dropout']
+        self.l1_ratio = phase_args['l1_ratio']
+        self.g_learning_rate = phase_args['g_learning_rate']
+        self.d_learning_rate = phase_args['d_learning_rate']
+        self.phase_only = phase_args['phase_only']
+        self.save_wpath = phase_args['save_wpath']
+        self.init_wpath = phase_args['init_wpath']
+        self.init_model = phase_args['init_model']
+        self.recon_monitor = phase_args['recon_monitor']
         self.filter = None
         self.generator = None
         self.discriminator = None
@@ -439,13 +445,30 @@ class GANphase:
 
 def _get_GANtomo_kwargs():
     return{
-        'init_num': 1000,
+        'iter_num': 1000,
         'conv_num': 32,
         'conv_size': 2,
         'dropout': 0.25,
         'l1_ratio': 10,
         'g_learning_rate': 3e-4,
         'd_learning_rate': 1e-6,
+        'save_wpath': None,
+        'init_wpath': None,
+        'init_model': False,
+        'recon_monitor': True,
+    }
+
+
+def _get_GANphase_kwargs():
+    return{
+        'iter_num': 1000,
+        'conv_num': 32,
+        'conv_size': 2,
+        'dropout': 0.25,
+        'l1_ratio': 10,
+        'g_learning_rate': 3e-3,
+        'd_learning_rate': 1e-4,
+        'phase_only': True,
         'save_wpath': None,
         'init_wpath': None,
         'init_model': False,
