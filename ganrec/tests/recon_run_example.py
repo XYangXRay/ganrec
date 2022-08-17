@@ -16,7 +16,7 @@ def main():
     # data = dxchange.read_tiff(fname_data)
     # nang, px = data.shape
     # theta = angles(nang, ang1=0, ang2=180)
-    data = np.load('/data/esther_gi_tomo/ML-tomo/SampleS/sino_all_list_n1w1f1.npy')
+    data = np.load('/data/esther_gi_tomo/ML-tomo/SampleG/sino_all_list_n1w1f1.npy')
     # data = np.load('/data/esther_gi_tomo/ML-tomo/SampleG/sino_all_list.npy')
     nslice, nang, px = data.shape
     # theta = np.load('/data/esther_gi_tomo/ML-tomo/SampleG/domain_angle_offset.npy', allow_pickle=True)
@@ -26,8 +26,9 @@ def main():
     iter_num = 1500
     for slice in range(nslice):
         prj = data[slice]
-        # prj = nor_tomo(prj)
+        prj = nor_tomo(prj)
         # prj = nor_prj(prj)
+        prj = remove_nan(prj)
         if slice ==0:
             gan_tomo_object = GANtomo(prj, theta, iter_num=2000, save_wpath = '/data/weights/')
         else:
@@ -38,7 +39,7 @@ def main():
         end = time.time()
         print('Running time for slice {} is {}'.format(slice, end - start))
         # fname_rec = '/data/esther_gi_tomo/ML-tomo/rec_G_test/rec' + "-%03d" % (slice)
-        fname_rec = '/data/esther_gi_tomo/ML-tomo//SampleS/reconc_ganrec/rec' + "-%03d" % (slice)
+        fname_rec = '/data/esther_gi_tomo/ML-tomo//SampleG/reconc_ganrec/rec' + "-%03d" % (slice)
 
         # fname_prj = '/data/esther_gi_tomo/ML-tomo/rec_G_test/prj' + "-%03d" % (slice)
         dxchange.write_tiff(rec.reshape((px, px)), fname_rec, overwrite=True, dtype='float32')

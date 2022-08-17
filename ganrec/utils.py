@@ -17,10 +17,10 @@ def angles(nang, ang1=0., ang2=180.):
 
 def nor_prj(img):
     # nang, px = img.shape
-    mean_sum = np.mean(np.sum(img, axis=1))
+    mean_sum = np.mean(np.sum(img, axis=(1,2)))
     data_corr = np.zeros_like(img)
     for i in range(len(img)):
-        data_corr[i, :] = img[i, :] * mean_sum / np.sum(img[i, :])
+        data_corr[i, :, :] = img[i, :, :] * mean_sum / np.sum(img[i, :, :])
     return data_corr
 
 
@@ -67,9 +67,11 @@ class RECONmonitor:
         self.im0 = self.axs[0, 0].imshow(img_input, cmap='gray')
         self.axs[0, 0].set_title(self.plot_txt)
         self.fig.colorbar(self.im0, ax=self.axs[0, 0])
+        self.axs[0, 0].set_aspect('equal','box')
         self.im1 = self.axs[1, 0].imshow(img_input, cmap='jet')
         self.tx1 = self.axs[1, 0].set_title('Difference of ' + self.plot_txt + ' for iteration 0')
         self.fig.colorbar(self.im1, ax=self.axs[1, 0])
+        self.axs[1, 0].set_aspect('equal')
         self.im2 = self.axs[0, 1].imshow(np.zeros((px, px)), cmap='gray')
         self.fig.colorbar(self.im2, ax=self.axs[0, 1])
         self.axs[0, 1].set_title('Reconstruction')
@@ -88,4 +90,5 @@ class RECONmonitor:
         vmin = np.min(img_rec)
         self.im2.set_clim(vmin, vmax)
         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
+        # plt.tight_layout()
         plt.pause(0.1)

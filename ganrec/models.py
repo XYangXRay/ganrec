@@ -1,17 +1,21 @@
 import tensorflow as tf
-from tensorflow.keras import layers, Input
+from tensorflow.keras import Sequential, Input, Model
+from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
+    Flatten, concatenate, \
+        BatchNormalization, Dropout, \
+            ReLU,LeakyReLU, Add  
 
 
 def dense_norm(units, dropout, apply_batchnorm=True):
     initializer = tf.random_normal_initializer()
 
-    result = tf.keras.Sequential()
+    result = Sequential()
     result.add(
-        layers.Dense(units, activation=tf.nn.tanh, use_bias=True, kernel_initializer=initializer))
-    result.add(layers.Dropout(dropout))
+        Dense(units, activation=tf.nn.tanh, use_bias=True, kernel_initializer=initializer))
+    result.add(Dropout(dropout))
 
     if apply_batchnorm:
-        result.add(layers.BatchNormalization())
+        result.add(BatchNormalization())
 
     #     result.add(layers.LeakyReLU())
 
@@ -21,13 +25,13 @@ def dense_norm(units, dropout, apply_batchnorm=True):
 def conv2d_norm(filters, size, strides, apply_batchnorm=True):
     initializer = tf.random_normal_initializer()
 
-    result = tf.keras.Sequential()
+    result = Sequential()
     result.add(
-        layers.Conv2D(filters, size, strides=strides, padding='same',
-                      kernel_initializer=initializer, activation=tf.nn.elu))
+        Conv2D(filters, size, strides=strides, padding='same',
+               kernel_initializer=initializer, activation=tf.nn.elu))
 
     if apply_batchnorm:
-        result.add(layers.BatchNormalization())
+        result.add(BatchNormalization())
 
     # result.add(layers.LeakyReLU())
 
@@ -37,24 +41,118 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=True):
 def dconv2d_norm(filters, size, strides, apply_dropout=False):
     initializer = tf.random_normal_initializer()
 
-    result = tf.keras.Sequential()
+    result = Sequential()
     result.add(
-        layers.Conv2DTranspose(filters, size, strides=strides,
-                               padding='same',
-                               kernel_initializer=initializer,
-                               use_bias=False))
+        Conv2DTranspose(filters, size, strides=strides,
+                        padding='same',
+                        kernel_initializer=initializer,
+                        use_bias=False))
 
-    result.add(tf.keras.layers.BatchNormalization())
+    result.add(BatchNormalization())
 
     if apply_dropout:
-        result.add(tf.keras.layers.Dropout(0.5))
+        result.add(Dropout(0.5))
 
-    result.add(tf.keras.layers.ReLU())
+    result.add(ReLU())
 
     return result
 
 
+# Define the residual block as a new layer
+class Residual(Layer):
+    def __init__(self, channels_in,kernel,**kwargs):
+        super(Residual, self).__init__(**kwargs)
+        self.channels_in = channels_in
+        self.kernel = kernel
+
+    def call(self, x):
+        # the residual block using Keras functional API
+        first_layer =   Activation("linear", trainable=False)(x)
+        x =             Conv2D( self.channels_in,
+                                self.kernel,
+                                padding="same")(first_layer)
+        x =             Activation("relu")(x)
+        x =             Conv2D( self.channels_in,
+                                self.kernel,
+                                padding="same")(x)
+        residual =      Add()([x, first_layer])
+        x =             Activation("relu")(residual)
+        return x
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+def dense_res(x, filters, size):
+    x = Conv2D(filters, size, padding='same')(x)
+    fx = Conv2DTranspose(filters, size, activation='relu', padding='same')(x)
+    fx = BatchNormalization()(fx)
+    fx = Conv2DTranspose(filters, size, padding='same')(fx)
+    out = concatenate([x,fx], axis=3)
+    out = LeakyReLU()(out)
+    out = BatchNormalization()(out)
+
+
+def conv_res(x, filters, size):
+    x = Conv2D(filters, size, padding='same')(x)
+    fx = Conv2DTranspose(filters, size, activation='relu', padding='same')(x)
+    fx = BatchNormalization()(fx)
+    fx = Conv2DTranspose(filters, size, padding='same')(fx)
+    out = concatenate([x,fx], axis=3)
+    out = LeakyReLU()(out)
+    out = BatchNormalization()(out)
+    return out
+
+def make_generator_rb(img_h, img_w, conv_num, conv_size, dropout, output_num):
+    units = 128
+    fc_size = img_w ** 2
+    inputs = Input(shape=(img_h, img_w, 1))
+    x = tf.keras.layers.Flatten()(inputs)
+    
+    
+
+
 def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
+    units = 128
+    fc_size = img_w ** 2
+    inputs = Input(shape=(img_h, img_w, 1))
+    x = Flatten()(inputs)
+    fc_stack = [
+        dense_norm(units, dropout),
+        dense_norm(units, dropout),
+        dense_norm(units, dropout),
+        dense_norm(fc_size, 0),
+    ]
+
+    conv_stack = [
+        conv2d_norm(conv_num, conv_size+2, 1),
+        conv2d_norm(conv_num, conv_size+2, 1),
+        conv2d_norm(conv_num, conv_size, 1),
+
+    ]
+
+    dconv_stack = [
+        dconv2d_norm(conv_num, conv_size+2, 1),
+        dconv2d_norm(conv_num, conv_size+2, 1),
+        dconv2d_norm(conv_num, conv_size, 1),
+    ]
+
+    last = conv2d_norm(output_num, 3, 1)
+
+    for fc in fc_stack:
+        x = fc(x)
+
+    x = tf.reshape(x, shape=[-1, img_w, img_w, 1])
+    # Convolutions
+    for conv in conv_stack:
+        x = conv(x)
+
+    for dconv in dconv_stack:
+        x = dconv(x)
+    x = last(x)
+    return Model(inputs=inputs, outputs=x)
+
+
+def make_generator_3d(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
     fc_size = img_w ** 2
     inputs = Input(shape=(img_h, img_w, 1))
@@ -94,6 +192,7 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     x = last(x)
 
     return tf.keras.Model(inputs=inputs, outputs=x)
+
 
 
 def make_filter(img_h, img_w):
@@ -146,33 +245,33 @@ def make_filter(img_h, img_w):
 
     x = last(x)
 
-    return tf.keras.Model(inputs=inputs, outputs=x)
+    return Model(inputs=inputs, outputs=x)
 
 
 def make_discriminator(nang, px):
-    model = tf.keras.Sequential()
-    model.add(layers.Conv2D(16, (5, 5), strides=(2, 2), padding='same',
+    model = Sequential()
+    model.add(Conv2D(16, (5, 5), strides=(2, 2), padding='same',
                             input_shape=[nang, px, 1]))
-    model.add(layers.Conv2D(16, (5, 5), strides=(1, 1), padding='same'))
-    model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.2))
+    model.add(Conv2D(16, (5, 5), strides=(1, 1), padding='same'))
+    model.add(LeakyReLU())
+    model.add(Dropout(0.2))
 
-    model.add(layers.Conv2D(32, (5, 5), strides=(2, 2), padding='same'))
+    model.add(Conv2D(32, (5, 5), strides=(2, 2), padding='same'))
     # model.add(layers.Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
-    model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.2))
+    model.add(LeakyReLU())
+    model.add(Dropout(0.2))
 
-    model.add(layers.Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
+    model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
     # model.add(layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
-    model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.2))
+    model.add(LeakyReLU())
+    model.add(Dropout(0.2))
 
-    model.add(layers.Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
+    model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
     # model.add(layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
-    model.add(layers.LeakyReLU())
-    model.add(layers.Dropout(0.2))
+    model.add(LeakyReLU())
+    model.add(Dropout(0.2))
 
-    model.add(layers.Flatten())
-    model.add(layers.Dense(1))
+    model.add(Flatten())
+    model.add(Dense(1))
 
     return model
