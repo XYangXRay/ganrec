@@ -3,7 +3,7 @@ from tensorflow.keras import Sequential, Input, Model
 from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
     Flatten, concatenate, \
         BatchNormalization, Dropout, \
-            ReLU,LeakyReLU, Add  
+            ReLU,LeakyReLU, Activation, Add  
 
 
 def dense_norm(units, dropout, apply_batchnorm=True):
@@ -59,24 +59,70 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
 
 
 # Define the residual block as a new layer
-class Residual(Layer):
-    def __init__(self, channels_in,kernel,**kwargs):
-        super(Residual, self).__init__(**kwargs)
-        self.channels_in = channels_in
-        self.kernel = kernel
+class Res_dense(Layer):
+    def __init__(self, units, dropout,**kwargs):
+        super(Res_dense, self).__init__(**kwargs)
+        self.units = units
+        self.dropout = dropout
 
     def call(self, x):
         # the residual block using Keras functional API
-        first_layer =   Activation("linear", trainable=False)(x)
-        x =             Conv2D( self.channels_in,
-                                self.kernel,
-                                padding="same")(first_layer)
-        x =             Activation("relu")(x)
-        x =             Conv2D( self.channels_in,
-                                self.kernel,
-                                padding="same")(x)
-        residual =      Add()([x, first_layer])
-        x =             Activation("relu")(residual)
+        first_layer = Activation("linear", trainable=False)(x)
+        x = Dense(self.units, 
+                  activation=tf.nn.tanh, 
+                  use_bias=True)(first_layer)
+        x = Dense(self.units, 
+                  activation=tf.nn.tanh, 
+                  use_bias=True)(x)
+        residual = Add()([x, first_layer])
+        x = Activation(tf.nn.tanh)(residual)
+        return x
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+
+class Res_conv(Layer):
+    def __init__(self, filters, size,**kwargs):
+        super(Res_conv, self).__init__(**kwargs)
+        self.filters = filters
+        self.size = size
+
+    def call(self, x):
+        # the residual block using Keras functional API
+        first_layer = Activation("linear", trainable=False)(x)
+        x = Conv2D(self.filters,
+                   self.size,
+                   padding="same")(first_layer)
+        x = Activation("relu")(x)
+        x = Conv2D(self.filters,
+                   self.size,
+                   padding="same")(x)
+        residual = Add()([x, first_layer])
+        x = Activation("relu")(residual)
+        return x
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+    
+class Res_dconv(Layer):
+    def __init__(self, filters, size,**kwargs):
+        super(Res_dconv, self).__init__(**kwargs)
+        self.filters = filters
+        self.size = size
+
+    def call(self, x):
+        # the residual block using Keras functional API
+        first_layer = Activation("linear", trainable=False)(x)
+        x = Conv2DTranspose(self.filters,
+                            self.size,
+                            padding="same")(first_layer)
+        x = Activation("relu")(x)
+        x = Conv2DTranspose(self.filters,
+                            self.size,
+                            padding="same")(x)
+        residual = Add()([x, first_layer])
+        x = Activation("relu")(residual)
         return x
 
     def compute_output_shape(self, input_shape):

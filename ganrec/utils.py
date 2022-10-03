@@ -35,6 +35,14 @@ def center(prj, cen):
     return prj
 
 
+def cal_intensity(prj, recon):
+    cal_coeff = np.mean(np.sum(prj, axis=(0, 2)))
+    recon_corr = np.zeros_like(recon)
+    for i in range(len(recon)):
+        recon_corr[i, :, :] = recon[i, :, :]*cal_coeff/np.sum(recon[i, :, :])
+    return recon_corr
+
+
 def nor_phase(img):
     mean_tmp = np.mean(img)
     std_tmp = np.std(img)
