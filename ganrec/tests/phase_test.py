@@ -1,4 +1,6 @@
 import time
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import dxchange
 from ganrec.utils import nor_phase
 from ganrec.ganrec2 import GANphase
@@ -8,7 +10,7 @@ def main():
     z = 0.5
     pv = 5e-7
     iter_num = 1000
-    fname_data = '/data/gan_phase/ifp_shepp.tiff'
+    fname_data = '/nsls2/data/staff/xyang4/data/gan_phase/ifp_shepp.tiff'
     data = dxchange.read_tiff(fname_data)
     px, _ = data.shape
     data = nor_phase(data)

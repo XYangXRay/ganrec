@@ -69,6 +69,7 @@ class RECONmonitor:
             self.plot_txt = 'Sinogram'
         elif self.recon_target == 'phase':
             self.plot_txt = 'Intensity'
+      
 
     def initial_plot(self, img_input):
         _, px = img_input.shape
@@ -100,3 +101,5 @@ class RECONmonitor:
         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
         # plt.tight_layout()
         plt.pause(0.1)
+    def close_plot(self):
+        plt.close()

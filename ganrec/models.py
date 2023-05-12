@@ -1,23 +1,26 @@
+from pickle import TRUE
 import tensorflow as tf
 from tensorflow.keras import Sequential, Input, Model
 from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
     Flatten, concatenate, \
         BatchNormalization, Dropout, \
-            ReLU,LeakyReLU, Activation, Add  
-
+            ReLU,LeakyReLU, Activation, Add
 
 def dense_norm(units, dropout, apply_batchnorm=True):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
     result.add(
-        Dense(units, activation=tf.nn.tanh, use_bias=True, kernel_initializer=initializer))
+        Dense(units, 
+            #   activation=tf.nn.tanh, 
+              use_bias=True, 
+              kernel_initializer=initializer))
     result.add(Dropout(dropout))
 
     if apply_batchnorm:
         result.add(BatchNormalization())
 
-    #     result.add(layers.LeakyReLU())
+    result.add(LeakyReLU())
 
     return result
 
@@ -27,13 +30,17 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=True):
 
     result = Sequential()
     result.add(
-        Conv2D(filters, size, strides=strides, padding='same',
-               kernel_initializer=initializer, activation=tf.nn.elu))
+        Conv2D(filters, 
+               size, 
+               strides=strides, 
+               padding='same',
+               kernel_initializer=initializer, 
+               use_bias=False))
 
     if apply_batchnorm:
         result.add(BatchNormalization())
 
-    # result.add(layers.LeakyReLU())
+    result.add(LeakyReLU())
 
     return result
 
@@ -43,7 +50,9 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
 
     result = Sequential()
     result.add(
-        Conv2DTranspose(filters, size, strides=strides,
+        Conv2DTranspose(filters, 
+                        size, 
+                        strides=strides,
                         padding='same',
                         kernel_initializer=initializer,
                         use_bias=False))
@@ -51,9 +60,9 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
     result.add(BatchNormalization())
 
     if apply_dropout:
-        result.add(Dropout(0.5))
+        result.add(Dropout(0.25))
 
-    result.add(ReLU())
+    result.add(LeakyReLU())
 
     return result
 
@@ -154,8 +163,6 @@ def make_generator_rb(img_h, img_w, conv_num, conv_size, dropout, output_num):
     inputs = Input(shape=(img_h, img_w, 1))
     x = tf.keras.layers.Flatten()(inputs)
     
-    
-
 
 def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
