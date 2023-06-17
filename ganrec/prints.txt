@@ -1,0 +1,191 @@
+******************************
+ 	The input is image with shape (1015, 2560) at energy 18.0 kev with pixel size 2.5699999999999995e-06 m and distance 2.5699999999999995e-06 m min/max of image 0.22420818 1.3229495 
+******************************
+******************************
+ 	The input is image with shape (1015, 2560) at energy 18.0 kev with pixel size 2.5699999999999995e-06 m and distance 2.5699999999999995e-06 m min/max of image 0.22420818 1.3229495 
+******************************
+Model: "model_1"
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+input_2 (InputLayer)         [(None, 1015, 2560, 1)]   0         
+_________________________________________________________________
+flatten (Flatten)            (None, 2598400)           0         
+_________________________________________________________________
+sequential_5 (Sequential)    (None, 128)               332595840 
+_________________________________________________________________
+sequential_6 (Sequential)    (None, 128)               17024     
+_________________________________________________________________
+sequential_7 (Sequential)    (None, 128)               17024     
+_________________________________________________________________
+sequential_8 (Sequential)    (None, 2598400)           345587200 
+_________________________________________________________________
+tf.reshape (TFOpLambda)      (None, 1015, 2560, 1)     0         
+_________________________________________________________________
+sequential_9 (Sequential)    (None, 1015, 2560, 32)    928       
+_________________________________________________________________
+sequential_10 (Sequential)   (None, 1015, 2560, 32)    25728     
+_________________________________________________________________
+sequential_11 (Sequential)   (None, 1015, 2560, 32)    9344      
+_________________________________________________________________
+sequential_12 (Sequential)   (None, 1015, 2560, 32)    25728     
+_________________________________________________________________
+sequential_13 (Sequential)   (None, 1015, 2560, 32)    25728     
+_________________________________________________________________
+sequential_14 (Sequential)   (None, 1015, 2560, 32)    9344      
+_________________________________________________________________
+sequential_15 (Sequential)   (None, 1015, 2560, 2)     584       
+=================================================================
+Total params: 678,314,472
+Trainable params: 673,116,516
+Non-trainable params: 5,197,956
+_________________________________________________________________
+finally the model is: 
+ None
+Model: "sequential_16"
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+conv2d_7 (Conv2D)            (None, 508, 1280, 16)     416       
+_________________________________________________________________
+conv2d_8 (Conv2D)            (None, 508, 1280, 16)     6416      
+_________________________________________________________________
+leaky_re_lu_16 (LeakyReLU)   (None, 508, 1280, 16)     0         
+_________________________________________________________________
+dropout_4 (Dropout)          (None, 508, 1280, 16)     0         
+_________________________________________________________________
+conv2d_9 (Conv2D)            (None, 254, 640, 32)      12832     
+_________________________________________________________________
+leaky_re_lu_17 (LeakyReLU)   (None, 254, 640, 32)      0         
+_________________________________________________________________
+dropout_5 (Dropout)          (None, 254, 640, 32)      0         
+_________________________________________________________________
+conv2d_10 (Conv2D)           (None, 127, 320, 64)      18496     
+_________________________________________________________________
+leaky_re_lu_18 (LeakyReLU)   (None, 127, 320, 64)      0         
+_________________________________________________________________
+dropout_6 (Dropout)          (None, 127, 320, 64)      0         
+_________________________________________________________________
+conv2d_11 (Conv2D)           (None, 64, 160, 64)       36928     
+_________________________________________________________________
+leaky_re_lu_19 (LeakyReLU)   (None, 64, 160, 64)       0         
+_________________________________________________________________
+dropout_7 (Dropout)          (None, 64, 160, 64)       0         
+_________________________________________________________________
+flatten_1 (Flatten)          (None, 655360)            0         
+_________________________________________________________________
+dense_4 (Dense)              (None, 1)                 655361    
+=================================================================
+Total params: 730,449
+Trainable params: 730,449
+Non-trainable params: 0
+_________________________________________________________________
+finally the model is: 
+ None
+WARNING:tensorflow:AutoGraph could not transform <bound method GANphase.rec_step of <tensorflow.python.eager.function.TfMethodTarget object at 0x2ba61dd20070>> and will run it as-is.
+Please report this to the TensorFlow team. When filing the bug, set the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and attach the full output.
+Cause: module 'gast' has no attribute 'Index'
+To silence this warning, decorate the function with @tf.autograph.experimental.do_not_convert
+WARNING: AutoGraph could not transform <bound method GANphase.rec_step of <tensorflow.python.eager.function.TfMethodTarget object at 0x2ba61dd20070>> and will run it as-is.
+Please report this to the TensorFlow team. When filing the bug, set the verbosity to 10 (on Linux, `export AUTOGRAPH_VERBOSITY=10`) and attach the full output.
+Cause: module 'gast' has no attribute 'Index'
+To silence this warning, decorate the function with @tf.autograph.experimental.do_not_convert
+E0fft shape:  (1015, 2560) H shape:  (1015, 2560)
+E0fft shape:  (1015, 2560) H shape:  (1015, 2560)
+Iteration 100: G_loss is 0.5506587028503418 and D_loss is 3.813265085220337
+Iteration 200: G_loss is 0.9201477766036987 and D_loss is 3.012454032897949
+Iteration 300: G_loss is 0.7734506130218506 and D_loss is 3.010039806365967
+Iteration 400: G_loss is 0.8088902235031128 and D_loss is 2.7918825149536133
+Iteration 500: G_loss is 0.9642976522445679 and D_loss is 2.437249183654785
+Running time is 246.20531940460205 saving to /beegfs/desy/user/hailudaw/git_folders/ganrec/ganrec/data/ganrec/recon/proj_thomas_001_d150_000003/
+SSIM between the input image and the reconstructed image is [0.3333575]
+SSIM between the input image and the reconstructed image is [0.3333575]
+SSIM between the input image and the reconstructed image is [0.3333575]
+SSIM between the input image and the reconstructed image is [0.02834161]
+Model: "model_3"
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+input_4 (InputLayer)         [(None, 1015, 2560, 1)]   0         
+_________________________________________________________________
+flatten_2 (Flatten)          (None, 2598400)           0         
+_________________________________________________________________
+sequential_22 (Sequential)   (None, 128)               332595840 
+_________________________________________________________________
+sequential_23 (Sequential)   (None, 128)               17024     
+_________________________________________________________________
+sequential_24 (Sequential)   (None, 128)               17024     
+_________________________________________________________________
+sequential_25 (Sequential)   (None, 2598400)           345587200 
+_________________________________________________________________
+tf.reshape_1 (TFOpLambda)    (None, 1015, 2560, 1)     0         
+_________________________________________________________________
+sequential_26 (Sequential)   (None, 1015, 2560, 32)    928       
+_________________________________________________________________
+sequential_27 (Sequential)   (None, 1015, 2560, 32)    25728     
+_________________________________________________________________
+sequential_28 (Sequential)   (None, 1015, 2560, 32)    9344      
+_________________________________________________________________
+sequential_29 (Sequential)   (None, 1015, 2560, 32)    25728     
+_________________________________________________________________
+sequential_30 (Sequential)   (None, 1015, 2560, 32)    25728     
+_________________________________________________________________
+sequential_31 (Sequential)   (None, 1015, 2560, 32)    9344      
+_________________________________________________________________
+sequential_32 (Sequential)   (None, 1015, 2560, 2)     584       
+=================================================================
+Total params: 678,314,472
+Trainable params: 673,116,516
+Non-trainable params: 5,197,956
+_________________________________________________________________
+finally the model is: 
+ None
+Model: "sequential_33"
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+conv2d_19 (Conv2D)           (None, 508, 1280, 16)     416       
+_________________________________________________________________
+conv2d_20 (Conv2D)           (None, 508, 1280, 16)     6416      
+_________________________________________________________________
+leaky_re_lu_36 (LeakyReLU)   (None, 508, 1280, 16)     0         
+_________________________________________________________________
+dropout_12 (Dropout)         (None, 508, 1280, 16)     0         
+_________________________________________________________________
+conv2d_21 (Conv2D)           (None, 254, 640, 32)      12832     
+_________________________________________________________________
+leaky_re_lu_37 (LeakyReLU)   (None, 254, 640, 32)      0         
+_________________________________________________________________
+dropout_13 (Dropout)         (None, 254, 640, 32)      0         
+_________________________________________________________________
+conv2d_22 (Conv2D)           (None, 127, 320, 64)      18496     
+_________________________________________________________________
+leaky_re_lu_38 (LeakyReLU)   (None, 127, 320, 64)      0         
+_________________________________________________________________
+dropout_14 (Dropout)         (None, 127, 320, 64)      0         
+_________________________________________________________________
+conv2d_23 (Conv2D)           (None, 64, 160, 64)       36928     
+_________________________________________________________________
+leaky_re_lu_39 (LeakyReLU)   (None, 64, 160, 64)       0         
+_________________________________________________________________
+dropout_15 (Dropout)         (None, 64, 160, 64)       0         
+_________________________________________________________________
+flatten_3 (Flatten)          (None, 655360)            0         
+_________________________________________________________________
+dense_9 (Dense)              (None, 1)                 655361    
+=================================================================
+Total params: 730,449
+Trainable params: 730,449
+Non-trainable params: 0
+_________________________________________________________________
+finally the model is: 
+ None
+generator is initilized
+E0fft shape:  (1015, 2560) H shape:  (1015, 2560)
+E0fft shape:  (1015, 2560) H shape:  (1015, 2560)
+Iteration 100: G_loss is 0.8525593280792236 and D_loss is 1.5758626461029053
+Iteration 200: G_loss is 0.89632248878479 and D_loss is 1.7453323602676392
+Iteration 300: G_loss is 0.8954777717590332 and D_loss is 1.7180354595184326
+Iteration 400: G_loss is 0.8421496152877808 and D_loss is 1.572292685508728
+Iteration 500: G_loss is 0.8403640389442444 and D_loss is 1.488767385482788
+Running time is 222.96022200584412
