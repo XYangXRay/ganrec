@@ -1,5 +1,5 @@
 from models import make_generator, make_discriminator, make_filter
-from utils import RECONmonitor, ffactor, fresnel_operator, save_path_generator, visualize
+from utils import RECONmonitor, ffactor, fresnel_operator, visualize
 
 import skimage.io as io
 
@@ -92,15 +92,31 @@ def phase_fresnel(phase, absorption, ff, px, py):
     return ifp
 
 
-def ssim_check(image, rec_phantom):
-    wave = tf.cast(tf.exp(tf.complex(-rec_phantom[0], rec_phantom[1])), dtype = tf.complex64)
-    px, py = image.shape
-    intensity = tfnor_phase(tf.reshape(tf.cast(tf.abs(wave)**2, dtype = tf.float32), [1, px, py, 1]))
+def ssim_check(image, rec, ff, z):
+    propagated = FresnelPropagator(rec[1], rec[0], ff, z)
     data_im = tfnor_phase(tf.reshape(image, [1, px, py, 1]))
-    ssim = tf.image.ssim(data_im, intensity, max_val = 1.0)
- 
+    ssim = tf.image.ssim(data_im, propagated, max_val = 1.0)
     print("SSIM between the input image and the reconstructed image is {}".format(ssim))
     return ssim
+
+# def ssim_check(image, rec_phantom):
+#     wave = tf.cast(tf.exp(tf.complex(-rec_phantom[0], rec_phantom[1])), dtype = tf.complex64)
+#     px, py = image.shape
+#     intensity = tfnor_phase(tf.reshape(tf.cast(tf.abs(wave = tf.cast(tf.exp(tf.complex(-rec_phantom[0], rec_phantom[1])), dtype = tf.complex64))**2, dtype = tf.float32), [1, px, py, 1]))
+#     data_im = tfnor_phase(tf.reshape(image, [1, px, py, 1]))
+#     ssim = tf.image.ssim(data_im, intensity, max_val = 1.0)
+ 
+#     print("SSIM between the input image and the reconstructed image is {}".format(ssim))
+#     return ssim
+
+def peak_signal_to_noise(image, rec_phantom, ff, z):
+    propagated = FresnelPropagator(rec_phantom[1], rec_phantom[0], ff, z)
+    data_im = tfnor_phase(tf.reshape(image, [1, px, py, 1]))
+    ssim = tf.image.ssim(data_im, propagated, max_val = 1.0)
+    # visualize_interact([propagated[0,:,:,0], data_im[0,:,:,0]])
+    psnr = tf.image.psnr(data_im, propagated, max_val = 1.0)
+    print("Noise to signal ratio is {}".format(psnr))
+    return psnr
 
 class GANphase:
     def __init__(self, i_input, energy, z, pv, **kwargs):
@@ -121,21 +137,11 @@ class GANphase:
         self.g_learning_rate = phase_args['g_learning_rate']
         self.d_learning_rate = phase_args['d_learning_rate']
         self.phase_only = phase_args['phase_only']
-        if 'save_path' in kwargs:
-            self.save_wpath = kwargs['save_path']
-        else:
-            self.save_wpath = phase_args['save_wpath']
-        self.init_model = phase_args['init_model']
-        if 'init_model' in kwargs:
-            self.init_model = kwargs['init_model']
-        else:
-            self.init_model = phase_args['init_model']
-        if self.init_model is True:
-            self.init_wpath = self.save_wpath
-        if 'iter_num' in kwargs:
-            self.iter_num = kwargs['iter_num']
-        else:
-            self.iter_num = phase_args['iter_num']
+        self.save_wpath = kwargs['save_wpath'] if 'save_wpath' in kwargs else phase_args['save_wpath']
+        self.init_model = kwargs['init_model'] if 'init_model' in kwargs else phase_args['init_model']
+        self.init_wpath = kwargs['init_wpath'] if 'init_wpath' in kwargs else phase_args['init_wpath']
+        self.file_name = kwargs['file_name'] if 'file_name' in kwargs else 'retrieved'
+        self.iter_num = kwargs['iter_num'] if 'iter_num' in kwargs else phase_args['iter_num']
         self.recon_monitor = phase_args['recon_monitor']
         self.filter = True
         self.generator = None
@@ -149,7 +155,7 @@ class GANphase:
         if self.filter is True:
             self.filter = make_filter(self.i_input.shape[0],
                                   self.i_input.shape[1])
-        self.generator = make_generator(self.i_input.shape[0],
+        self.generator = make_generator2(self.i_input.shape[0],
                                         self.i_input.shape[1],
                                         self.conv_num,
                                         self.conv_size,
@@ -261,8 +267,8 @@ class GANphase:
         
         if self.save_wpath != None:
             import skimage.io as io
-            self.generator.save(self.save_wpath+'generator.h5')
-            self.discriminator.save(self.save_wpath+'discriminator.h5')
+            self.generator.save(self.init_wpath+'generator.h5')
+            self.discriminator.save(self.init_wpath+'discriminator.h5')
             io.imsave(self.save_wpath+ 'final_phase_iter_' +str(self.iter_num)+'.tif', phase[epoch][1], check_contrast=False)
             io.imsave(self.save_wpath+ 'final_absorption_iter_' +str(self.iter_num)+'.tif', absorption[epoch][0], check_contrast=False)
         return absorption[epoch], phase[epoch]
@@ -293,10 +299,10 @@ def run_ganphase(**kwargs):
     rec = gan_phase_object.recon
     end = time.time()
 
-    save_path, file_name = save_path_generator(**kwargs)
-    print('Running time is {}'.format(end - start), 'saving to {}'.format(save_path))
-    io.imsave(save_path + file_name+'_final_phase.tif', rec[1], check_contrast=False)
-    io.imsave(save_path + file_name+'_final_absorption.tif', rec[0], check_contrast=False)
+    save_wpath, file_name = save_wpath_generator(**kwargs)
+    print('Running time is {}'.format(end - start), 'saving to {}'.format(save_wpath))
+    io.imsave(save_wpath + file_name+'_final_phase.tif', rec[1], check_contrast=False)
+    io.imsave(save_wpath + file_name+'_final_absorption.tif', rec[0], check_contrast=False)
 
     visualize(rec)
     return rec, gan_phase_object
