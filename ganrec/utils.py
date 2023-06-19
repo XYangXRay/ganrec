@@ -47,7 +47,6 @@ class RECONmonitor:
             self.plot_txt = 'Sinogram'
         elif self.recon_target == 'phase':
             self.plot_txt = 'Intensity'
-      
 
     def initial_plot(self, img_input):
         px, py = img_input.shape
@@ -113,6 +112,21 @@ def grid_generator(shape_x, shape_y, upscale = 1, ps = 5.5e-06):
     
     return Fx, Fy
 
+def save_path_generator(**kwargs):
+    file_name = os.path.splitext(os.path.basename(kwargs['image_path']))[0]
+    #the folder name of the 'image_path'
+    folder = os.path.basename(os.path.dirname(kwargs['image_path']))
+    init_path = os.getcwd() + '/data/saved_weights/' + folder + '/'
+    save_wpath = os.getcwd() + '/data/retrieved/' + folder + '/'
+    if not os.path.exists(init_path):
+        os.makedirs(init_path)
+    if not os.path.exists(save_wpath):
+        os.makedirs(save_wpath)
+    kwargs['file_name'] = file_name
+    kwargs['save_wpath'] = save_wpath
+    kwargs['init_wpath'] = init_path
+    return kwargs 
+    
 def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, detector_pixel_size = 2.57 * 1e-6, distance_sample_detector = 0.15, alpha = 1e-8, delta_beta = 1e1, pad = 1, method = 'TIE', image = None, phase_path= None, attenuation_path = None, phase_image = None, attenuation_image = None):
     """
     make sure that the unit of energy is in keV, the unit of detector_pixel_size is in meter, and the unit of distance_sample_detector is in meter
@@ -203,23 +217,9 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
         'phase_image': phase_image,
         'attenuation_image': attenuation_image,
     } 
+    kwargs.update(save_path_generator(**kwargs))
     return kwargs
 
-def save_path_generator(**kwargs):
-    if 'save_path' in kwargs:
-        save_path = kwargs['save_path']
-    else:
-        save_path = os.getcwd() + '/data/ganrec/recon/'
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    if 'save_wpath' in kwargs:
-        save_wpath = kwargs['save_wpath']
-    else:
-        kwargs['save_wpath'] = save_path
-    file_name = os.path.splitext(os.path.basename(kwargs['image_path']))[0] + '/'
-    if not os.path.exists(save_path + file_name):
-        os.makedirs(save_path + file_name)
-    return save_path+file_name
 
 
 def load_image(url):
