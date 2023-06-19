@@ -41,3 +41,16 @@ Training with a previous weight!
 | ------- | ---- | ------------------ | ------------------ | ---------- |
 | False   | 100  | 0.5443984270095825 | 3.8580539226531982 | 0.4052531  |
 | True    | 100  | 0.5837660431861877 | 3.623978853225708  | 0.24803953 |
+
+
+# For simulation spheres
+
+For the simulation data, 
+
+1. without initializing the model with previously trained
+2. 500 iteration
+3. result:
+
+Noise to signal ratio is [28.46919],
+
+SSIM between the input image and the reconstructed image is [0.9556593]
