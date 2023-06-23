@@ -151,7 +151,6 @@ def peak_signal_to_noise(image, rec_phantom, ff, distance_sample_detector):
     print("Noise to signal ratio is {}".format(psnr))
     return psnr
 
-
 class GANphase():
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
@@ -171,6 +170,8 @@ class GANphase():
             self.transform_func = lambda x: tf.image.adjust_contrast(x, factor)
         elif self.transform_type == 'equalize':
             self.transform_func = tf_equalize
+
+        self.transformed_image = self.transform_func(self.image)[0,:,:,0]
         super(GANphase, self).__init__()
         
     def make_model(self):
@@ -210,9 +211,11 @@ class GANphase():
                 absorption = tf.zeros_like(phase)
             # i_rec = tfnor_phase(tf.reshape(FresnelPropagator(phase, absorption, ff, ref_image = None, dark_image = None), [1, self.shape_x, self.shape_y, 1]))
             propagated = FresnelPropagator(phase, absorption, ff, ref_image = None, dark_image = None)
-            i_rec = self.transform_func(FresnelPropagator(phase, absorption, ff, ref_image = None, dark_image = None))
             if self.transform_type == 'reshape':
                 i_rec = tfback_phase(propagated, transformed_image)[0, :, :, 0]
+            else:
+                i_rec = self.transform_func(FresnelPropagator(phase, absorption, ff, ref_image = None, dark_image = None))
+
             real_output = self.discriminator(transformed_image, training=True)
             fake_output = self.discriminator(i_rec, training=True)
             
@@ -283,10 +286,12 @@ class GANphase():
                     i_rec = np.reshape(i_rec, (self.shape_x, self.shape_y))
                     i_diff = np.abs(i_rec - self.transformed_image)
                     phase_plt = np.reshape(phase[epoch], (self.shape_x, self.shape_y))
-                    fig, ax = recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss, save_path = self.save_wpath+'recon_monitor/')
-                    if self.save_wpath is not None:
-                        fig.savefig(self.save_wpath+'recon_monitor/iter_'+str(epoch+1)+'.png')
+                    recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss, None)
                     # hdisplay.update(fig)
+                    if self.save_wpath != None:
+                        import skimage.io as io
+                        io.imsave(self.save_wpath+ 'iter_' +str(epoch)+'.tif', phase_plt, check_contrast=False)
+                        io.imsave(self.save_wpath+ 'iter_' +str(epoch)+'_diff.tif', i_diff, check_contrast=False)
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, gen_loss[epoch], d_loss.numpy()))
         recon_monitor.close_plot()
         
