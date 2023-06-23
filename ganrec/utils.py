@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.fft import fftfreq
+from numpy import pi 
 import matplotlib.pyplot as plt
 import os 
 import skimage.io as io
@@ -24,8 +25,7 @@ def ffactor(px, py, energy, z, pv):
     return h.astype('complex64')
 
 def fresnel_operator(px, py, pv, z, energy):
-    from numpy.fft import fftfreq
-    from numpy import pi 
+    
     lambda0 = 1.23984122e-09 / energy
     upsample_scale = 1;                 # Scale by which to upsample image
     nx = upsample_scale * px # Image width in pixels (same as height)
@@ -60,7 +60,7 @@ class RECONmonitor:
         self.axs[0, 0].set_aspect('equal')
         self.im2 = self.axs[0, 1].imshow(np.zeros((px, py)), cmap='gray')
         self.fig.colorbar(self.im2, ax=self.axs[0, 1])
-        self.axs[0, 1].set_title('Reconstruction')
+        self.axs[0, 1].set_title('retrieved phase')
         self.im3, = self.axs[1, 1].plot([], [], 'r-')
         self.axs[1, 1].set_title('Generator loss')
         self.axs[0, 2].set_title('plot profile of input')
@@ -68,10 +68,11 @@ class RECONmonitor:
         self.axs[0, 2].set_title('plot profile of input')
         self.im4 = self.axs[1, 2].plot([], 'r-')
         self.axs[1, 2].set_title('plot profile of recon')
-
+        
+        
         plt.tight_layout()
 
-    def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss):
+    def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss, save_path = None):
         self.tx1.set_text('Difference of ' + self.plot_txt + ' for iteration {0}'.format(epoch))
         vmax = np.max(img_diff)
         vmin = np.min(img_diff)
@@ -82,15 +83,9 @@ class RECONmonitor:
         vmin = np.min(img_rec)
         self.im2.set_clim(vmin, vmax)
         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
-        #axs 1,2 is the plot profile of recon
         self.axs[1, 2].plot(img_rec[int(img_rec.shape[0]/2), :], 'r-')
-        #save the plot with the epoch number
-        if epoch%100==0:
-            #5 significant digits
-            plt.savefig('data/ganrec/recon/recon_{0:05d}.png'.format(epoch))
-        # plt.tight_layout()
         plt.pause(0.1)
-        
+
     def close_plot(self):
         plt.close()
 
@@ -249,6 +244,7 @@ def load_dxchange(paths = []):
 
 
 #plot the images
+
 def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', random = True, cmap = 'None', figsize = (20, 20), title = ''):
     #if images is a pandas dataframe, convert to numpy array
         
@@ -292,15 +288,17 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
     shape = images[0].shape
     if rows == 1 and cols == 1:
         figsize = (10,10)
+        fig = plt.figure(figsize=figsize)
         plt.imshow(images[0]) if show_or_plot == 'show' else plt.plot(images[0][shape[0]//2, :])
         plt.axis('on')
         if random:
-            plt.title('min: ' + str(np.min(images)) + ' max: ' + str(np.max(images)) + 'im_' + str(random_numbers[0]), fontsize = 12)
+            plt.title('min: ' + str(np.min(images))[:6] + ' max: ' + str(np.max(images))[:6] + 'im_' + str(random_numbers[0]), fontsize = 12)
         else:
-            plt.title('min: ' + str(np.min(images)) + ' max: ' + str(np.max(images)), fontsize = 12)
+            plt.title('min: ' + str(np.min(images))[:6] + ' max: ' + str(np.max(images))[:6], fontsize = 12)
         if title != '':
             plt.title(title)
         #if cmap is 
+        fig.colorbar(plt.imshow(images[0])) if show_or_plot == 'show' else None
         plt.gray()
         plt.show()
         return None
@@ -318,16 +316,17 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
                 ax[j].axis('on')
                 if random:
                     if title == '':
-                        title = 'min: ' + str(np.min(images[j])) + ' max: ' + str(np.max(images[j])) + 'im_' + str(random_numbers[counter])
+                        title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:6] + 'im_' + str(random_numbers[counter])
 
                     if type(title) == list:
                         title = title[counter]
                     if type(title) == str and title != '':
                         title = title + '_im_' + str(random_numbers[counter])
                 else:
-                    title = 'min: ' + str(np.min(images[j])) + ' max: ' + str(np.max(images[j]))
+                    title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:3]
                 ax[j].set_title(title, fontsize = 12)
-
+                ax[j].axis('off')
+                fig.colorbar(ax[j].imshow(images[j]), ax=ax[j])
                 
             elif show_or_plot == 'plot':    
                 if np.iscomplexobj(images[j]):
@@ -337,15 +336,16 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
                 ax[j].axis('on')
                 if random:
                     if title == '':
-                        title = 'min: ' + str(np.min(images[j])) + ' max: ' + str(np.max(images[j])) + 'im_' + str(random_numbers[counter])
+                        title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:6] + 'im_' + str(random_numbers[counter])
 
                     if type(title) == list:
                         title = title[counter]
                     if type(title) == str and title != '':
                         title = title + '_im_' + str(random_numbers[counter])
                 else:
-                    title = 'min: ' + str(np.min(images[j])) + ' max: ' + str(np.max(images[j]))
-                ax[j].set_title(title, fontsize = 12)      
+                    title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:6]
+                ax[j].set_title(title, fontsize = 12)   
+                   
             counter += 1
     else:
         counter = 0
@@ -355,18 +355,19 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
                     ax[i, j].imshow(images[counter])
                     ax[i, j].axis('on')
                     if random:
-                        title = 'min: ' + str(np.min(images[counter])) + ' max: ' + str(np.max(images[counter])) + 'im_' + str(random_numbers[counter])
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6] + 'im_' + str(random_numbers[counter])
                     else:
-                        title = 'min: ' + str(np.min(images[counter])) + ' max: ' + str(np.max(images[counter]))
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6]
                     ax[i, j].set_title(title, fontsize = 12)
+                    
 
                 elif show_or_plot == 'plot':    
                     ax[i, j].plot(images[counter][shape[0]//2, :])
                     ax[i, j].axis('on')
                     if random:
-                        title = 'min: ' + str(np.min(images[counter])) + ' max: ' + str(np.max(images[counter])) + 'im_' + str(random_numbers[counter])
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6] + 'im_' + str(random_numbers[counter])
                     else:
-                        title = 'min: ' + str(np.min(images[counter])) + ' max: ' + str(np.max(images[counter]))
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6]
 
                     ax[i, j].set_title(title, fontsize = 12)
 
@@ -374,17 +375,17 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
                     ax[i, j].imshow(images[counter])
                     ax[i, j].axis('on')
                     if random:
-                        title = 'min: ' + str(np.min(images[counter])) + ' max: ' + str(np.max(images[counter])) + 'im_' + str(random_numbers[counter])
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6] + 'im_' + str(random_numbers[counter])
                     else:
-                        title = 'min: ' + str(np.min(images[counter])) + ' max: ' + str(np.max(images[counter]))
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6]
                     ax[i, j].set_title(title, fontsize = 12)
                     
                     ax2 = ax[i, j].twinx()
                     ax2.plot(images[counter][shape[0]//2, :])
                     ax2.axis('on')
                     ax2.set_title(title, fontsize = 12)
+                    fig.colorbar(ax[i, j].imshow(images[counter]), ax=ax[i, j])
                 counter += 1
-    #cmap gray
     plt.gray()
     plt.show()
     return None
