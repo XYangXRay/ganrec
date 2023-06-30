@@ -18,9 +18,9 @@ def nor_diff(img):
 
 def main():
 
-    iter_num = 6000
+    iter_num = 4000
     # fname_data = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/data_crop_nor.tiff'
-    fname_data = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test-2.tif'
+    fname_data = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test3_0_degree.tiff'
     fname_mask = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/mask_crop_nor.tiff'
     data = dxchange.read_tiff(fname_data)
     # data  = data[128-100:128+100, 128-100:128+100]
@@ -33,8 +33,8 @@ def main():
     end = time.time()
     print('Running time is {}'.format(end - start))
     print(rec.shape, rec.dtype)
-    dxchange.write_tiff(rec.reshape((px, px)), '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop/results/phase_loge3', overwrite=True)
-    dxchange.write_tiff(abs.reshape((px, px)), '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop/results/abs_loge3', overwrite=True)
+    dxchange.write_tiff(rec.reshape((px, px)), '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop/results/phase_log50', overwrite=True)
+    dxchange.write_tiff(abs.reshape((px, px)), '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop/results/abs_log50', overwrite=True)
     # dxchange.write_tiff(rec.reshape((px, px)), '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/results/phase_loge3', overwrite=True)
     # dxchange.write_tiff(abs.reshape((px, px)), '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/results/abs_loge3', overwrite=True)
 
