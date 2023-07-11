@@ -38,7 +38,7 @@ Using GANrec for Phase retrieval is a machine learning method of retrieving the 
 
 ## 2. For the Simulation data
 
-![sim_process](image/README/phatom_process.png)
+![sim_process](image/README/sim_process.png)
 
 > After 1300 iterations:
 > ![sphere_phase_attenuation](image/README/sphere_phase_atten_1300.png)
