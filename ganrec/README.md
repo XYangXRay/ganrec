@@ -14,30 +14,67 @@ Using GANrec for Phase retrieval is a machine learning method of retrieving the 
 
 ![1687188252624](image/README/gan_arc.png)
 
-
 ---
 
-# For phantom projection:
+# Results for different experiments
 
-![1687187408987](image/README/1687187408987.png)
+## 1. For the phantom data
 
----
+![phatom_process](image/README/phatom_process.png)
 
-# model_results
+> After 1300 iterations:
+> ![phase_attenuation](image/README/phatom_phase_atten_1300.png)
+> *tf.Tensor: shape=(1,), dtype=float32, numpy=array([0.9426766], type=float32)*
 
-| Model                     | Iteration      | G_loss                      | D_loss                       | SSIM                | PSNR               | time         |
-| ------------------------- | -------------- | --------------------------- | ---------------------------- | ------------------- | ------------------ | ------------ |
-| model_generator_rev       | 100            | 0.5252670645713806          | 3.493865966796875            | 0.38239267          |                    | 1''          |
-| model_generator_rev       | 500            | 0.8400967121124268          | 1.8466062545776367           | 0.42755893          |                    | 4'           |
-| model_generator_rev       | 1000           | 0.7979649901390076          | 1.5719962120056152           | 0.58666307          |                    | 9'           |
-| **model_generator** | **1000** | **0.781958937644958** | **1.4627526998519897** | **0.7422442** | **29.98487** | **7'** |
-| u_net                     | 100            | 1.5755401849746704          | 1.7901132106781006           | 0.69                |                    | 52''         |
+| Model           | Iteration | G_loss             | D_loss             | SSIM       | PSNR | time |
+| --------------- | --------- | ------------------ | ------------------ | ---------- | ---- | ---- |
+| model_generator | 100       | 0.5252670645713806 | 3.493865966796875  | 0.38239267 |      |      |
+|                 | 400       | 0.8212271332740784 | 1.4829493761062622 |            |      |      |
+|                 | 500       | 0.9681499600410461 | 1.434912919998169  |            |      |      |
+|                 | 800       | 0.7757389545440674 | 1.410948395729065  |            |      |      |
+|                 | 1000      | 0.8766704201698303 | 1.396097183227539  |            |      |      |
+|                 | 1200      | 0.7798200249671936 | 1.3912122249603271 |            |      |      |
+|                 | 1300      | 0.9134629368782043 | 1.3979194164276123 | 0.9426766  |      | 9'   |
 
-Iteration 1000: G_loss is 1.5755401849746704 and D_loss is 1.7901132106781006
+## 2. For the Simulation data
 
-![1687174575365](image/SSIM/1687174575365.png "Model for the GANrec) ![1687172413875](image/SSIM/1687172413875.png)
+![sim_process](image/README/phatom_process.png)
 
-![1687172050970](image/SSIM/1687172050970.png)
+> After 1300 iterations:
+> ![sphere_phase_attenuation](image/README/sphere_phase_atten_1300.png)
+> *tf.Tensor: shape=(1,), dtype=float32, numpy=array([0.9869069], type=float32)*
+
+| Model           | Iteration | G_loss             | D_loss             | SSIM      | PSNR | time |
+| --------------- | --------- | ------------------ | ------------------ | --------- | ---- | ---- |
+| model_generator | 100       | 0.7840274572372437 | 2.4736170768737793 |           |      |      |
+|                 | 400       | 0.8808481097221375 | 1.65756094455719   |           |      |      |
+|                 | 500       | 0.8498396277427673 | 1.65756094455719   |           |      |      |
+|                 | 800       | 0.8882272243499756 | 1.3864026069641113 |           |      |      |
+|                 | 1000      | 0.7862778902053833 | 1.3896679878234863 |           |      |      |
+|                 | 1200      | 0.7478931546211243 | 1.379651665687561  |           |      |      |
+|                 | 1300      | 0.751545786857605  | 1.3673007488250732 | 0.9869069 |      | 17'  |
+
+## 3. For the holo data
+
+![holo_process](image/README/holo_process.png)
+
+> After 1300 iterations:
+> ![holo_phase_attenuation](image/README/holot_phase_atten_1300.png)
+> *tf.Tensor: shape=(1,), dtype=float32, numpy=array([0.9899711], type=float32)*
+
+| Model           | Iteration | G_loss             | D_loss             | SSIM      | PSNR | time   |
+| --------------- | --------- | ------------------ | ------------------ | --------- | ---- | ------ |
+| model_generator | 100       | 0.8157875537872314 | 1.9476568698883057 |           |      |        |
+|                 | 400       | 0.8255200386047363 | 1.8638721704483032 |           |      |        |
+|                 | 500       | 0.8071261644363403 | 1.5162357091903687 |           |      |        |
+|                 | 800       | 0.7775182723999023 | 1.412088394165039  |           |      |        |
+|                 | 1000      | 0.7542343735694885 | 1.400909423828125  |           |      |        |
+|                 | 1200      | 0.7404253482818604 | 1.3978853225708008 |           |      |        |
+|                 | 1300      | 0.7355071902275085 | 1.397374153137207  | 0.9899711 |      | 1'19'' |
+
+
+
+# Adjusting the abs_ratio, g_learning rate and loading a model
 
 Iteration = 300
 
@@ -63,19 +100,3 @@ Training with a previous weight!
 | ------- | ---- | ------------------ | ------------------ | ---------- |
 | False   | 100  | 0.5443984270095825 | 3.8580539226531982 | 0.4052531  |
 | True    | 100  | 0.5837660431861877 | 3.623978853225708  | 0.24803953 |
-
----
-
-# For simulated spheres
-
-For the simulation data,
-
-1. without initializing the model with previously trained
-2. 500 iteration
-3. result:
-
-Noise to signal ratio is [28.46919],
-
-SSIM between the input image and the reconstructed image is [0.9556593]
-
-# RESULT SO FAR!
