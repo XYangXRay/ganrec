@@ -1,7 +1,7 @@
 
 import tensorflow as tf
 from tensorflow.keras import Input, Model
-from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
+from tensorflow.keras.layers import Layer, MaxPooling2D, UpSampling2D, concatenate, Dense, Conv2D, Conv2DTranspose, \
     Flatten, concatenate, \
         BatchNormalization, Dropout, \
             ReLU,LeakyReLU, Add, Activation
@@ -109,28 +109,24 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     x = last(x)
     
     model = Model(inputs=inputs, outputs=x)
-    print("finally the model is: \n", model.summary()) 
     return model
 
 
-def make_generator2(img_h, img_w, conv_num, conv_size, dropout, output_num):
-    print("function: make_generator\******************************\ninputs are: \nimg_h {}, img_w {}, conv_num {}, conv_size {}, dropout {}, output_num {}".format(
-        img_h, img_w, conv_num, conv_size, dropout, output_num))
-    
+def make_generator_rev(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
-    fc_size = img_w ** 2
+    fc_size = img_h * img_w
     inputs = Input(shape=(img_h, img_w, 1))
+
     fc_stack = [
         dense_norm(units, dropout),
-        # dense_norm(units, dropout),
-        # dense_norm(units, dropout),
+        dense_norm(units, dropout),
+        dense_norm(units, dropout),
         dense_norm(fc_size, 0),
     ]
 
     conv_stack = [
         conv2d_norm(conv_num, conv_size+2, 1),
         conv2d_norm(conv_num, conv_size+2, 1),
-        # conv2d_norm(conv_num, conv_size, 1),
         conv2d_norm(conv_num, conv_size, 1),
 
     ]
@@ -138,32 +134,31 @@ def make_generator2(img_h, img_w, conv_num, conv_size, dropout, output_num):
     dconv_stack = [
         dconv2d_norm(conv_num, conv_size+2, 1),
         dconv2d_norm(conv_num, conv_size+2, 1),
-        # dconv2d_norm(conv_num, conv_size, 1),
         dconv2d_norm(conv_num, conv_size, 1),
     ]
+
     
     last_1 = conv2d_norm(1, 3, 1)
     last = conv2d_norm(output_num, 3, 1)
-
+    
+    #model structure
     x = conv2d_norm(conv_num, conv_size+2, 1)(inputs)
-    x = conv2d_norm(conv_num, conv_size+2, 1)(x)
+    for conv in conv_stack:
+        x = conv(x)
+
+    for dconv in dconv_stack:
+        x = dconv(x)
     x = dconv2d_norm(conv_num, conv_size+2, 1)(x)
-    x = dconv2d_norm(conv_num, conv_size, 1)(x)
+    
     x = last_1(x)
     x = Flatten()(x)
-    x = dense_norm(units, dropout)(x)
-    x = dense_norm(units, dropout)(x)
-    x = dense_norm(fc_size, 0)(x)
-    x = tf.reshape(x, shape=[-1, img_w, img_w, 1])
-    # Convolutions
-    x = conv2d_norm(conv_num, conv_size+2, 1)(x)
-    x = conv2d_norm(conv_num, conv_size, 1)(x)
-    x = dconv2d_norm(conv_num, conv_size+2, 1)(x)
-    x = dconv2d_norm(conv_num, conv_size, 1)(x)
-    x = last(x)
-    
-    model = Model(inputs=inputs, outputs=x)
-    print("finally the model is: \n", model.summary()) 
+
+    for fc in fc_stack:
+        x = fc(x)
+    x = tf.reshape(x, shape=[-1, img_h, img_w, 1])
+
+    x = last(x)    
+    model = Model(inputs=inputs, outputs=x) 
     return model
 
 
@@ -226,6 +221,42 @@ def make_discriminator(nang, px):
     model.add(Flatten())
     model.add(Dense(1))
 
-    print("finally the model is: \n", model.summary())
+    return model
 
+def unet(img_h, img_w, output_num = 2, depth=4, conv_num=64, conv_size=3):
+    inputs = Input(shape=(img_h, img_w, 1))
+    conv_stack = [
+        conv2d_norm(conv_num, conv_size, 1),
+        conv2d_norm(conv_num*2, conv_size, 1),
+        conv2d_norm(conv_num*3, conv_size, 1),
+        conv2d_norm(conv_num*4, conv_size, 1),
+    ]
+
+    dconv_stack = [
+        dconv2d_norm(conv_num*3, conv_size, 1),
+        dconv2d_norm(conv_num*2, conv_size, 1),
+        dconv2d_norm(conv_num, conv_size, 1),
+    ]
+
+    up = UpSampling2D(size=(2, 2))
+     
+    down = MaxPooling2D(pool_size=(2, 2))
+    last = conv2d_norm(output_num, conv_size, 1)
+
+    #model structure
+    x = inputs
+    for conv in conv_stack:
+        x = conv(x)
+        x = down(x)
+
+    for dconv in dconv_stack:
+        x = up(x)
+        x = dconv(x)
+
+    x = last(x)
+
+    #to original size
+    x = UpSampling2D(size=(2, 2))(x)
+    model = Model(inputs=inputs, outputs=x)
+    print(model.summary())
     return model

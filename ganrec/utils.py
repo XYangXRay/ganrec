@@ -526,3 +526,162 @@ def energy_from_wave_number(wave_number):
     energy = energy.magnitude
     return energy
 
+
+def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', random = True, cmap = 'None', figsize = (20, 20), title = ''):
+    #if images is a pandas dataframe, convert to numpy array
+        
+    if len(images) == 0:
+        print("no images to plot")
+        return None
+    elif len(images) == 1:
+        rows = 1
+        cols = 1
+    elif len(images) < rows*cols:
+        rows = 1
+        cols = len(images)
+    else:
+        pass
+    #generate random numbers rows*cols times and take the images with the random numbers
+    random_numbers = np.random.randint(0, len(images), rows*cols)
+    if random:
+        images = [images[i] for i in random_numbers]
+    else:
+        images = images[:rows*cols]
+
+    #if images are complex, take the absolute value
+    if np.iscomplexobj(images[0]):
+        #exponent the images
+        
+        # images = [np.exp(np.imag(image) - np.real(image)) for image in images]
+        images = [np.abs(image) for image in images]
+        # print("images are complex, taking the np.exp(imag - real) value")
+
+    #if the images is 4D, 
+    if len(images[0].shape) == 4:
+        shape = images[0].shape
+        if shape[0] > shape[1] and shape[0] > shape[2]:
+            images = [image[0, :, :, 0] for image in images]
+        elif shape[2] > shape[0] and shape[2] > shape[1]:
+            images = [image[:, :, 0, 0] for image in images]
+        else:
+            images = [images[0,:,:,0] for image in images]
+        images = [image[0,:, :, 0] for image in images]
+
+    shape = images[0].shape
+    if rows == 1 and cols == 1:
+        figsize = (10,10)
+        fig = plt.figure(figsize=figsize)
+        plt.imshow(images[0]) if show_or_plot == 'show' else plt.plot(images[0][shape[0]//2, :])
+        plt.axis('on')
+        if random:
+            plt.title('min: ' + str(np.min(images))[:6] + ' max: ' + str(np.max(images))[:6] + 'im_' + str(random_numbers[0]), fontsize = 12)
+        else:
+            plt.title('min: ' + str(np.min(images))[:6] + ' max: ' + str(np.max(images))[:6], fontsize = 12)
+        if title != '':
+            plt.title(title)
+        #if cmap is 
+        fig.colorbar(plt.imshow(images[0])) if show_or_plot == 'show' else None
+        plt.gray()
+        plt.show()
+        return None
+    
+    figsize = (shape[1]*cols/100, shape[0]*rows/100)
+    fig, ax = plt.subplots(rows, cols, figsize=figsize)
+    if rows == 1:
+        counter = 0
+        for j in range(cols):
+            if show_or_plot == 'show':
+                if np.iscomplexobj(images[j]):
+                    ax[j].imshow(np.exp(np.imag(images[j]) - np.real(images[j])))
+                else:
+                    ax[j].imshow(images[j])
+                ax[j].axis('on')
+                if random:
+                    if title == '':
+                        title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:6] + 'im_' + str(random_numbers[counter])
+
+                    if type(title) == list:
+                        title = title[counter]
+                    if type(title) == str and title != '':
+                        title = title + '_im_' + str(random_numbers[counter])
+                else:
+                    title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:3]
+                ax[j].set_title(title, fontsize = 12)
+                ax[j].axis('off')
+                fig.colorbar(ax[j].imshow(images[j]), ax=ax[j])
+                
+            elif show_or_plot == 'plot':    
+                if np.iscomplexobj(images[j]):
+                    ax[j].plot((np.exp(np.imag(images[j]) - np.real(images[j])))[shape[0]//2, :])
+                else:
+                    ax[j].plot(images[j][shape[0]//2, :])
+                ax[j].axis('on')
+                if random:
+                    if title == '':
+                        title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:6] + 'im_' + str(random_numbers[counter])
+
+                    if type(title) == list:
+                        title = title[counter]
+                    if type(title) == str and title != '':
+                        title = title + '_im_' + str(random_numbers[counter])
+                else:
+                    title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:6]
+                ax[j].set_title(title, fontsize = 12)   
+                   
+            counter += 1
+    else:
+        counter = 0
+        for i in range(rows):
+            for j in range(cols):
+                if show_or_plot == 'show':
+                    ax[i, j].imshow(images[counter])
+                    ax[i, j].axis('on')
+                    if random:
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6] + 'im_' + str(random_numbers[counter])
+                    else:
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6]
+                    ax[i, j].set_title(title, fontsize = 12)
+                    
+
+                elif show_or_plot == 'plot':    
+                    ax[i, j].plot(images[counter][shape[0]//2, :])
+                    ax[i, j].axis('on')
+                    if random:
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6] + 'im_' + str(random_numbers[counter])
+                    else:
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6]
+
+                    ax[i, j].set_title(title, fontsize = 12)
+
+                elif show_or_plot == 'both':
+                    ax[i, j].imshow(images[counter])
+                    ax[i, j].axis('on')
+                    if random:
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6] + 'im_' + str(random_numbers[counter])
+                    else:
+                        title = 'min: ' + str(np.min(images[counter]))[:6] + ' max: ' + str(np.max(images[counter]))[:6]
+                    ax[i, j].set_title(title, fontsize = 12)
+                    
+                    ax2 = ax[i, j].twinx()
+                    ax2.plot(images[counter][shape[0]//2, :])
+                    ax2.axis('on')
+                    ax2.set_title(title, fontsize = 12)
+                    fig.colorbar(ax[i, j].imshow(images[counter]), ax=ax[i, j])
+                counter += 1
+    plt.gray()
+    plt.show()
+    return None
+
+def visualize(pure = [] , show_or_plot = 'show', rows = 1, cols = 5, random = False, in_parallel = False):
+    if show_or_plot == 'show':
+        plot_or_show_images(pure, show_or_plot='show', rows = rows, cols = cols, random = random)
+    elif show_or_plot == 'plot':
+        plot_or_show_images(pure, show_or_plot='plot', rows = rows, cols = cols, random = random)
+
+def visualize_interact(pure = []):
+    import ipywidgets as widgets
+    from ipywidgets import interact
+    from IPython.display import display
+    interact(visualize, pure = widgets.fixed(pure), show_or_plot = widgets.Dropdown(options=['show', 'plot'], value='show', description='Show or plot:'), rows = widgets.IntSlider(min=1, max=10, step=1, value=1, description='Rows:'), cols = widgets.IntSlider(min=1, max=10, step=1, value=3, description='Columns:'))
+     
+ 
