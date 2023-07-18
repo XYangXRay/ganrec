@@ -108,9 +108,14 @@ def grid_generator(shape_x, shape_y, upscale = 1, ps = 5.5e-06):
     return Fx, Fy
 
 def save_path_generator(**kwargs):
-    file_name = os.path.splitext(os.path.basename(kwargs['image_path']))[0]
-    #the folder name of the 'image_path'
-    folder = os.path.basename(os.path.dirname(kwargs['image_path']))
+    try:
+        file_name = os.path.splitext(os.path.basename(kwargs['image_path']))[0]
+        #the folder name of the 'image_path'
+        folder = os.path.basename(os.path.dirname(kwargs['image_path']))
+    except:
+        file_name = os.path.splitext(os.path.basename(kwargs['image_path'][0]))[0]
+        folder = os.path.basename(os.path.dirname(kwargs['image_path'][0]))
+        
     init_path = os.getcwd() + '/data/saved_weights/' + folder + '/'
     save_wpath = os.getcwd() + '/data/retrieved/' + folder + '/'
     if not os.path.exists(init_path):
@@ -121,14 +126,14 @@ def save_path_generator(**kwargs):
     kwargs['save_wpath'] = save_wpath
     kwargs['init_wpath'] = init_path
     return kwargs 
-    
-def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, detector_pixel_size = 2.57 * 1e-6, distance_sample_detector = 0.15, alpha = 1e-8, delta_beta = 1e1, pad = 1, method = 'TIE', image = None, phase_path= None, attenuation_path = None, phase_image = None, attenuation_image = None):
+
+def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, detector_pixel_size = 2.57 * 1e-6, distance_sample_detector = 0.15, alpha = 1e-8, delta_beta = 1e1, pad = 1, method = 'TIE', file_type = 'tif', image = None, phase_path= None, attenuation_path = None, phase_image = None, attenuation_image = None, **kwargs):
     """
     make sure that the unit of energy is in keV, the unit of detector_pixel_size is in meter, and the unit of distance_sample_detector is in meter
     """
 
     if path is not None:
-        images = list(io.imread_collection(path + '/*.tif').files)
+        images = list(io.imread_collection(path + '/*.' + file_type).files)
         # images = sorted(glob(path + '/*.tif'))
         if type(idx) is list:
             image_path = [images[i] for i in idx]
@@ -158,8 +163,8 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
     
     
     if phase_path is not None and attenuation_path is not None:
-        phase_images = io.imread_collection(phase_path + '/*.tif').files
-        attenuation_images = io.imread_collection(attenuation_path + '/*.tif').files
+        phase_images = io.imread_collection(phase_path + '/*.' + file_type).files
+        attenuation_images = io.imread_collection(attenuation_path + '/*.' + file_type).files
         if type(idx) is list:
             phase_image_path = []
             attenuation_image_path = []
@@ -203,10 +208,13 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
         'fx': Fx, 'fy': Fy,
         'method': method, 
         'delta_beta': delta_beta,
-
+        "fresnel_factor":  fresnel_operator(int(shape_x) * pad, int(shape_y) * pad, detector_pixel_size, distance_sample_detector, energy_kev),
+        
         "image_path": image_path,
         "image": image,
+        "all_images": images,
         "ND": ND,
+        
         "phase_path": phase_path,
         "attenuation_path": attenuation_path,
         'phase_image': phase_image,
@@ -214,7 +222,6 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
     } 
     kwargs.update(save_path_generator(**kwargs))
     return kwargs
-
 
 
 def load_image(url):

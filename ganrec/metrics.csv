@@ -1,0 +1,9 @@
+,0,0.1,0.2,0.3,0.4,0.5,0.6,0
+experiment_name,phantom,phantom_without_matching,phantom_iteration:2000,phantom_without_matching_iteration:2000,simulated_spheres_iteration:1300,simulated_spheres_without_matching_iteration:1300,phantom_iteration:1300,phantom_without_matching_iteration:1300
+sum of pointwise difference,"tf.Tensor(-0.00010092975, shape=(), dtype=float32)","tf.Tensor(-2672.1282, shape=(), dtype=float32)",-0.00010530913,-2675.5784,0.3938483,-2076.6765,7.64397e-05,-514.29456
+sum of absolute value of pointwise difference,"tf.Tensor(15.706145, shape=(), dtype=float32)","tf.Tensor(2672.1282, shape=(), dtype=float32)",10.203534,2675.5784,8.178048,2076.6765,2.0941803,514.29456
+sum of squared difference,"tf.Tensor(0.47586074, shape=(), dtype=float32)","tf.Tensor(2841.8354, shape=(), dtype=float32)",0.21491212,2845.609,0.1606996,2270.4583,0.077492,517.2799
+PSNR,"tf.Tensor([37.3076], shape=(1,), dtype=float32)","tf.Tensor([-0.4535894], shape=(1,), dtype=float32)",[40.75979],[-0.4593523],[41.053146],[-0.44783568],[38.20013],[-0.04455648]
+SSIM,"tf.Tensor([0.9062976], shape=(1,), dtype=float32)","tf.Tensor([0.01166576], shape=(1,), dtype=float32)",[0.96225566],[0.00358366],[0.95263356],[0.13512816],[0.98911136],[-0.00621034]
+NRMSE,"tf.Tensor(0.6898266, shape=(), dtype=float32)","tf.Tensor(53.30887, shape=(), dtype=float32)",0.46358615,53.34425,0.40087354,47.649326,0.27837384,22.743788
+MSSIM,"tf.Tensor([0.9824731], shape=(1,), dtype=float32)","tf.Tensor([0.], shape=(1,), dtype=float32)",[0.9935361],[0.],[0.99022555],[0.72484684],[0.9976426],[0.]
