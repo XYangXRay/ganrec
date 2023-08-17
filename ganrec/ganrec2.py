@@ -124,12 +124,12 @@ def phase_fraunhofer(phase, absorption):
     # wf = mask_img(wf)
     # wf = tf.multiply(ampl, tf.exp(phshift))
     # wf = tf.manip.roll(wf, [160, 160], [0, 1])
-    ifp = tf.square(tf.abs(tf.signal.fft2d(wf)))
+    ifp = tf.math.multiply(tf.square(tf.abs(tf.signal.fft2d(wf))), tf.square(tf.abs(tf.signal.fft2d(wf))))
  
     
     # # adding log to the fft
     # ifp = tf.math.log(ifp+8000)
-    ifp = tf.math.log(ifp+10000)
+    ifp = tf.math.log(ifp+50)
     # ifp = tf.math.log(tf.abs(tf.signal.fft2d(wf))+1)
     # ifp = tf.math.log(tf.square(tf.abs(tf.signal.fft2d(wf)))+1)
     ifp = tf.signal.fftshift(ifp)
