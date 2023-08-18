@@ -5,6 +5,8 @@ from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
     Flatten, concatenate, \
         BatchNormalization, Dropout, \
             ReLU,LeakyReLU, Activation, Add
+from tensorflow.keras.initializers import glorot_uniform
+from tensorflow.signal import fft, fft2d, ifft, ifft2d, rfft, irfft, rfft2d, irfft2d
 
 def dense_norm(units, dropout, apply_batchnorm=True):
     initializer = tf.random_normal_initializer()
@@ -157,6 +159,8 @@ def conv_res(x, filters, size):
     out = BatchNormalization()(out)
     return out
 
+
+
 def make_generator_rb(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
     fc_size = img_w ** 2
@@ -247,6 +251,114 @@ def make_generator_3d(img_h, img_w, conv_num, conv_size, dropout, output_num):
     return tf.keras.Model(inputs=inputs, outputs=x)
 
 
+
+def P(X, F1, k_size, s, stage):
+    
+    # Name definition
+    P_Name = 'P-layer' + str(stage)
+    P_BN_Name = 'P-layer-BN' + str(stage)
+    
+    X = Conv2D(filters = F1, kernel_size = (k_size, k_size), strides = (s, s), padding = 'valid',
+              name = P_Name, kernel_initializer = glorot_uniform(seed = 0))(X)
+    
+    X = BatchNormalization(axis = 3, name = P_BN_Name)(X)
+    
+    X = Activation('relu')(X)
+    
+    return X
+
+def FourierLayer(X, stage):
+    
+    # Name definition
+    FFT_name = 'fft-layer' + str(stage)
+    RFFT_name = 'ifft-layer' + str(stage)
+    
+    
+    Res_X = X
+    
+    
+    X = rfft2d(X, name = FFT_name)
+    
+    
+    out_ft = tf.zeros((1, X.shape[1], X.shape[2], X.shape[3]),dtype=tf.dtypes.complex64)
+
+    
+    out_ft_first = tf.Variable(np.array(out_ft.shape))
+    out_ft_first = tf.math.multiply(X[:, :, :5, :5], tf.cast(Res_X[:, :, :5, :5], tf.complex64))
+
+    out_ft_end  = tf.Variable(np.array(out_ft.shape))
+    out_ft_end = tf.math.multiply(X[:, :, -5:, :5], tf.cast(Res_X[:, :, -5:, :5], tf.complex64))
+
+
+    o1 = tf.concat([out_ft_first,out_ft[:,:,:5,5:]],axis=3)
+    o2 = tf.concat([out_ft[:,:,-5:,5:],out_ft_end],axis=3)
+    
+    out_ft = tf.concat([o1,o2],axis=2)
+
+    
+    X = irfft2d(X,name = RFFT_name)
+    
+    
+    X = Add()([X, Res_X])
+    
+    X = Activation('relu')(X)
+
+    
+    return X
+
+def Q(X, F1, k_size, s, stage):
+    
+    # Name definition
+    Q_Name = 'Q-layer' + str(stage)
+    Q_BN_Name = 'Q-layer-BN' + str(stage)
+    
+    
+    X = Conv2D(filters = F1, kernel_size = (k_size, k_size), strides = (s, s), padding = 'same',
+              name = Q_Name, kernel_initializer = glorot_uniform(seed = 0))(X)
+    
+    X = BatchNormalization(axis = 3, name = Q_BN_Name)(X)
+    
+    X = Activation('relu')(X)
+    
+    return X
+
+def make_generator_fno(img_h, img_w, conv_num, conv_size, dropout, output_num):
+
+    
+    X_input = Input(shape = (img_h, img_w, 1))
+    
+    # Zero-Padding
+    X = ZeroPadding2D((2, 2))(X_input)
+    
+    # First Part
+    X = P(X, F1 = 256, k_size = 1, s = 1, stage = 1)
+#    X = P(X, F1 = 256, k_size = 2, s = 2, stage = 2)
+#    X = P(X, F1 = 256, k_size = 2, s = 2, stage = 3)
+    X = MaxPooling2D((2, 2), strides = (2, 2))(X)
+    X = tf.keras.layers.Dropout(0.3)(X)
+    
+    
+    # Middle Part
+    X = FourierLayer(X, stage = 1)
+    X = FourierLayer(X, stage = 2)
+    X = FourierLayer(X, stage = 3)
+    X = FourierLayer(X, stage = 4)
+    
+    # Final Part
+
+    X = Q(X, F1 = 512, k_size = 1, s = 1, stage = 1)
+#    X = Q(X, F1 = 1024, k_size = 1, s = 2, stage = 2)
+#    X = Q(X, F1 = 256, k_size = 1, s = 2, stage = 3)
+#    X = UpSampling2D((2, 2))(X)
+#    X = tf.keras.layers.Dropout(0.4)(X)
+    X = Flatten()(X)
+    X = Dense(1024, activation='sigmoid', kernel_initializer = glorot_uniform(seed=0))(X)
+    X = Dense(len(classess), activation='softmax', kernel_initializer = glorot_uniform(seed=0))(X)
+
+    # Create model
+    model = Model(inputs = X_input, outputs = X, name = 'Fourier-Neural-Operator')
+    
+    return model
 
 def make_filter(img_h, img_w):
     inputs = Input(shape=[img_h, img_w, 1])
