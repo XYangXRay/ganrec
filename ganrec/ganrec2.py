@@ -10,8 +10,14 @@ from ganrec.utils import RECONmonitor, ffactor
 
 
 # Load the configuration from the JSON file
-def load_config(json_file_path):
-    with open(json_file_path, 'r') as file:
+def load_config(filename):
+        # Get the directory of the script
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    
+    # Construct the full path to the config file
+    config_path = os.path.join(dir_path, filename)
+    
+    with open(config_path, 'r') as file:
         config = json.load(file)
     return config
 
@@ -417,8 +423,9 @@ class GANtomo:
     @property
     def recon(self):
         nang, px = self.prj_input.shape
-        prj = np.reshape(self.prj_input, (1, nang, px, 1))
+        prj = np.reshape(self.prj_input, (1, nang, px, 1)) 
         prj = tf.cast(prj, dtype=tf.float32)
+        prj = self.tfnor_tomo(prj)
         ang = tf.cast(self.angle, dtype=tf.float32)
         self.make_model()
         if self.init_wpath:
