@@ -391,8 +391,9 @@ class GANtomo:
     @tf.function    
     def tfnor_tomo(self, img):
         img = tf.image.per_image_standardization(img)
-        img = img / tf.reduce_max(img)
-        img = img - tf.reduce_min(img)
+        # img = img / tf.reduce_max(img)
+        # img = img - tf.reduce_min(img)
+        img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
         return img
 
     @tf.function

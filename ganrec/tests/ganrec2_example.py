@@ -7,7 +7,7 @@ from ganrec.ganrec2 import GANtomo
 
 def main():
     prj = tifffile.imread('shale_prj.tiff')
-    plt.imshow(prj)
+    # plt.imshow(prj)
     nang, px = prj.shape
     ang = angles(nang)
     prj = nor_tomo(prj)
