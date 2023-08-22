@@ -328,32 +328,32 @@ def make_generator_fno(img_h, img_w, conv_num, conv_size, dropout, output_num):
     X_input = Input(shape = (img_h, img_w, 1))
     
     # Zero-Padding
-    X = ZeroPadding2D((2, 2))(X_input)
+    # X = ZeroPadding2D((2, 2))(X_input)
     
     # First Part
-    X = P(X, F1 = 256, k_size = 1, s = 1, stage = 1)
+    # X = P(X, F1 = 256, k_size = 1, s = 1, stage = 1)
 #    X = P(X, F1 = 256, k_size = 2, s = 2, stage = 2)
 #    X = P(X, F1 = 256, k_size = 2, s = 2, stage = 3)
-    X = MaxPooling2D((2, 2), strides = (2, 2))(X)
-    X = tf.keras.layers.Dropout(0.3)(X)
+    # X = MaxPooling2D((2, 2), strides = (2, 2))(X)
+    # X = tf.keras.layers.Dropout(0.3)(X)
     
     
     # Middle Part
-    X = FourierLayer(X, stage = 1)
+    X = FourierLayer(X_input, stage = 1)
     X = FourierLayer(X, stage = 2)
     X = FourierLayer(X, stage = 3)
     X = FourierLayer(X, stage = 4)
     
     # Final Part
 
-    X = Q(X, F1 = 512, k_size = 1, s = 1, stage = 1)
-#    X = Q(X, F1 = 1024, k_size = 1, s = 2, stage = 2)
-#    X = Q(X, F1 = 256, k_size = 1, s = 2, stage = 3)
-#    X = UpSampling2D((2, 2))(X)
-#    X = tf.keras.layers.Dropout(0.4)(X)
-    X = Flatten()(X)
-    X = Dense(1024, activation='sigmoid', kernel_initializer = glorot_uniform(seed=0))(X)
-    X = Dense(len(classess), activation='softmax', kernel_initializer = glorot_uniform(seed=0))(X)
+#     X = Q(X, F1 = 512, k_size = 1, s = 1, stage = 1)
+# #    X = Q(X, F1 = 1024, k_size = 1, s = 2, stage = 2)
+# #    X = Q(X, F1 = 256, k_size = 1, s = 2, stage = 3)
+# #    X = UpSampling2D((2, 2))(X)
+# #    X = tf.keras.layers.Dropout(0.4)(X)
+#     X = Flatten()(X)
+#     X = Dense(1024, activation='sigmoid', kernel_initializer = glorot_uniform(seed=0))(X)
+#     X = Dense(len(classess), activation='softmax', kernel_initializer = glorot_uniform(seed=0))(X)
 
     # Create model
     model = Model(inputs = X_input, outputs = X, name = 'Fourier-Neural-Operator')
@@ -422,21 +422,22 @@ def make_discriminator(nang, px):
     model.add(Dropout(0.2))
 
     model.add(Conv2D(32, (5, 5), strides=(2, 2), padding='same'))
-    # model.add(layers.Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
+    model.add(Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
-    # model.add(layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
-    # model.add(layers.Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Flatten())
+    model.add(Dense(256))
     model.add(Dense(1))
 
     return model

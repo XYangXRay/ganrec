@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 
 from ganrec.propagators import TomoRadon, PhaseFresnel, PhaseFraunhofer
-from ganrec.models import make_generator, make_discriminator, make_filter
+from ganrec.models import make_generator, make_generator_fno, make_discriminator, make_filter
 from ganrec.utils import RECONmonitor, ffactor
 
 
@@ -365,12 +365,18 @@ class GANtomo:
     def make_model(self):
         self.filter = make_filter(self.prj_input.shape[0],
                                   self.prj_input.shape[1])
-        self.generator = make_generator(self.prj_input.shape[0],
+        # self.generator = make_generator(self.prj_input.shape[0],
+        #                                 self.prj_input.shape[1],
+        #                                 self.conv_num,
+        #                                 self.conv_size,
+        #                                 self.dropout,
+        #                                 1)
+        self.generator = make_generator_fno(self.prj_input.shape[0],
                                         self.prj_input.shape[1],
                                         self.conv_num,
                                         self.conv_size,
                                         self.dropout,
-                                        1)
+                                        1)       
         self.discriminator = make_discriminator(self.prj_input.shape[0],
                                                 self.prj_input.shape[1])
         self.filter_optimizer = tf.keras.optimizers.Adam(5e-5)
