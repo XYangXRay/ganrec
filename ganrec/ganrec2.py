@@ -81,10 +81,10 @@ def avg_results(recon, loss):
 
 
 def tomo_bp(sinoi, ang):
-    prj = tfnor_data(sinoi)
+    # prj = tfnor_data(sinoi)
     d_tmp = sinoi.shape
     # print d_tmp
-    prj = tf.reshape(prj, [1, d_tmp[1], d_tmp[2], 1])
+    prj = tf.reshape(sinoi, [1, d_tmp[1], d_tmp[2], 1])
     prj = tf.tile(prj, [d_tmp[2], 1, 1, 1])
     prj = tf.transpose(prj, [1, 0, 2, 3])
     prj = tfa.image.rotate(prj, ang)
@@ -431,9 +431,12 @@ class GANtomo:
     def recon(self):
         nang, px = self.prj_input.shape
         prj = np.reshape(self.prj_input, (1, nang, px, 1)) 
+      
         prj = tf.cast(prj, dtype=tf.float32)
         prj = self.tfnor_tomo(prj)
+        
         ang = tf.cast(self.angle, dtype=tf.float32)
+        bp = tomo_bp(prj, ang)
         self.make_model()
         if self.init_wpath:
             self.generator.load_weights(self.init_wpath+'generator.h5')
@@ -455,7 +458,8 @@ class GANtomo:
             ## Call the rconstruction step
 
             # recon[epoch, :, :, :], prj_rec, gen_loss[epoch], d_loss = self.recon_step(prj, ang)
-            step_result = self.recon_step(prj, ang)
+            step_result = self.recon_step(bp, ang)
+            # step_result = self.recon_step(prj, ang)
             # step_result = self.recon_step_filter(prj, ang)
             recon[epoch, :, :, :] = step_result['recon']
             gen_loss[epoch] = step_result['g_loss']
@@ -484,7 +488,7 @@ class GANtomo:
 
 class GANtomo3D:
     def __init__(self, prj_input, angle, **kwargs):
-        tomo_args = _get_GANtomo_kwargs()
+        tomo_args = config['GANphase']
         tomo_args.update(**kwargs)
         super(GANtomo, self).__init__()
         self.prj_input = prj_input
@@ -648,7 +652,7 @@ class GANtomo3D:
 
 class GANphase:
     def __init__(self, i_input, energy, z, pv, **kwargs):
-        phase_args = _get_GANphase_kwargs()
+        phase_args = config['GANphase']
         phase_args.update(**kwargs)
         super(GANphase, self).__init__()
         self.i_input = i_input
@@ -779,7 +783,7 @@ class GANphase:
 
 class GANdiffraction:
     def __init__(self, i_input, mask, **kwargs):
-        phase_args = _get_GANdiffraction_kwargs()
+        phase_args = config['GANdiffraction']
         phase_args.update(**kwargs)
         super(GANdiffraction, self).__init__()
         self.i_input = i_input
