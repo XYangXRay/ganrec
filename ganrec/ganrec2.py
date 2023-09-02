@@ -707,14 +707,14 @@ class GANphase:
     def rec_step(self, i_input, ff):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             recon = self.generator(i_input)
-            # recon = tfa.image.median_filter2d(recon)
             phase = tfnor_phase(recon[:, :, :, 0])
             phase = tf.reshape(phase, [self.px, self.px])
             absorption = (1 - tfnor_phase(recon[:, :, :, 1]))* self.abs_ratio
             absorption = tf.reshape(absorption, [self.px, self.px])
             if self.phase_only:
                 absorption = tf.zeros_like(phase)
-            i_rec = phase_fresnel(phase, absorption, ff, self.px)
+            phase_obj = PhaseFresnel(phase, absorption, ff, self.px)
+            i_rec = phase_obj.compute()
             real_output = self.discriminator(i_input, training=True)
             fake_output = self.discriminator(i_rec, training=True)
             g_loss = generator_loss(fake_output, i_input, i_rec, self.l1_ratio)

@@ -16,7 +16,7 @@ def main():
     data = nor_phase(data)
     gan_phase_object = GANphase(data, energy, z, pv)
     start = time.time()
-    rec = gan_phase_object.recon
+    rec = gan_phase_object.recon[0,:]
     end = time.time()
     print('Running time is {}'.format(end - start))
     dxchange.write_tiff(rec.reshape((px, px)), '/data/gan_phase/test', overwrite=True)
