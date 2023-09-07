@@ -33,17 +33,17 @@ Activate the newly created ganrec environment.
 
 https://www.tensorflow.org/install/pip
 
-3. Clone the GANrec Repository:
+4. Clone the GANrec Repository:
 Clone the GANrec repository from GitHub to your local machine.
 
 `git clone https://github.com/XYangXRay/ganrec.git`
 
-4. Install the Required Packages:
+5. Install the Required Packages:
 Navigate to the main directory of the cloned repository and install the necessary packages.
 
-`cd ganrec
+`cd ganrec`
 
-python3 -m pip install -e .`
+`python3 -m pip install -e .`
 
 # References
 
