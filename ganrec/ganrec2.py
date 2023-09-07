@@ -683,7 +683,7 @@ class GANphase:
     def make_model(self):
         self.filter = make_filter(self.i_input.shape[0],
                                   self.i_input.shape[1])
-        self.generator = make_generator(self.i_input.shape[0],
+        self.generator = make_generator_fno(self.i_input.shape[0],
                                         self.i_input.shape[1],
                                         self.conv_num,
                                         self.conv_size,
