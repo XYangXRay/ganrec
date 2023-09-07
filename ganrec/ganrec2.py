@@ -365,12 +365,7 @@ class GANtomo:
     def make_model(self):
         self.filter = make_filter(self.prj_input.shape[0],
                                   self.prj_input.shape[1])
-        # self.generator = make_generator(self.prj_input.shape[0],
-        #                                 self.prj_input.shape[1],
-        #                                 self.conv_num,
-        #                                 self.conv_size,
-        #                                 self.dropout,
-        #                                 1)
+  
         self.generator = make_generator(self.prj_input.shape[0],
                                         self.prj_input.shape[1],
                                         self.conv_num,
@@ -436,7 +431,6 @@ class GANtomo:
         prj = self.tfnor_tomo(prj)
         
         ang = tf.cast(self.angle, dtype=tf.float32)
-        bp = tomo_bp(prj, ang)
         self.make_model()
         if self.init_wpath:
             self.generator.load_weights(self.init_wpath+'generator.h5')
@@ -458,7 +452,7 @@ class GANtomo:
             ## Call the rconstruction step
 
             # recon[epoch, :, :, :], prj_rec, gen_loss[epoch], d_loss = self.recon_step(prj, ang)
-            step_result = self.recon_step(bp, ang)
+            step_result = self.recon_step(prj, ang)
             # step_result = self.recon_step(prj, ang)
             # step_result = self.recon_step_filter(prj, ang)
             recon[epoch, :, :, :] = step_result['recon']
