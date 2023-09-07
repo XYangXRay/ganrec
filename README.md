@@ -39,3 +39,10 @@ Navigate to the main directory of the cloned repository and install the necessar
 
 `cd ganrec
 python3 -m pip install -e .`
+
+# References
+
+If you find GANrec is useful in your work, please consider citing:
+
+J. Synchrotron Rad. (2020). 27, 486-493.
+Available at: https://doi.org/10.1107/S1600577520000831
