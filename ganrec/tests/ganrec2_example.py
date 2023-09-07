@@ -7,11 +7,11 @@ from ganrec.ganrec2 import GANtomo
 
 def main():
     prj = tifffile.imread('shale_prj.tiff')
-    plt.imshow(prj)
+    # plt.imshow(prj)
     nang, px = prj.shape
     ang = angles(nang)
     prj = nor_tomo(prj)
-    gan_tomo_object = GANtomo(prj, ang, iter_num=1200)
+    gan_tomo_object = GANtomo(prj, ang, iter_num=2000)
     rec = gan_tomo_object.recon
     tifffile.imwrite('shale_recon.tiff', rec)
 if __name__ == "__main__":
