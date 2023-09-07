@@ -1,5 +1,3 @@
-# GANrec
-
 # GANrec: A GAN-based Data Reconstruction Framework
 
 # Overview
@@ -10,7 +8,35 @@ Originally designed for the fields of tomography and phase retrieval, GANrec shi
 
 # Features
 
-GAN-powered Reconstruction: At its core, GANrec employs GANs to assist in the reconstruction process, enabling more accurate and efficient results than conventional methods.
-Specialized for Tomography & Phase Retrieval: GANrec has been optimized for tomography and phase retrieval applications, ensuring precision and reliability in these domains.
-Modular Design: The framework's architecture allows users to provide their forward model, making it adaptable for various complex data reconstruction challenges.
-Efficient and Scalable: Built to handle large datasets, GANrec ensures that speed and efficiency are maintained without compromising the accuracy of reconstruction.
+1. GAN-powered Reconstruction: At its core, GANrec employs GANs to assist in the reconstruction process, enabling more accurate and efficient results than conventional methods.
+2. Specialized for Tomography & Phase Retrieval: GANrec has been optimized for tomography and phase retrieval applications, ensuring precision and reliability in these domains.
+3. Modular Design: The framework's architecture allows users to provide their forward model, making it adaptable for various complex data reconstruction challenges.
+4. Efficient and Scalable: Built to handle large datasets, GANrec ensures that speed and efficiency are maintained without compromising the accuracy of reconstruction.
+
+# Installation
+
+Installation
+
+Follow the steps below to install and set up GANrec:
+
+Create a Conda Environment:
+Create a new conda environment named ganrec.
+bash
+Copy code
+conda create --name ganrec python=3.8
+Activate the Conda Environment:
+Activate the newly created ganrec environment.
+bash
+Copy code
+conda activate ganrec
+Clone the GanRec Repository:
+Clone the GanRec repository from GitHub to your local machine.
+bash
+Copy code
+git clone https://github.com/XYangXRay/ganrec.git
+Install the Required Packages:
+Navigate to the main directory of the cloned repository and install the necessary packages.
+bash
+Copy code
+cd ganrec
+python3 -m pip install -e .
