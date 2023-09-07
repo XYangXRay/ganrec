@@ -22,17 +22,20 @@ Follow the steps below to install and set up GANrec:
 1. Create a Conda Environment:
 Create a new conda environment named ganrec.
 
-'''conda create --name ganrec python=3.8'''
+`conda create --name ganrec python=3.8`
 
 2. Activate the Conda Environment:
 Activate the newly created ganrec environment.
-'''conda activate ganrec''' 
 
-3. Clone the GanRec Repository:
-Clone the GanRec repository from GitHub to your local machine.
-'''git clone https://github.com/XYangXRay/ganrec.git'''
+`conda activate ganrec`
 
-4. Install the Required Packages:
+4. Clone the GANrec Repository:
+Clone the GANrec repository from GitHub to your local machine.
+
+`git clone https://github.com/XYangXRay/ganrec.git`
+
+6. Install the Required Packages:
 Navigate to the main directory of the cloned repository and install the necessary packages.
-'''cd ganrec
-python3 -m pip install -e .'''
+
+`cd ganrec
+python3 -m pip install -e .`
