@@ -24,6 +24,18 @@ def ffactor(px, py, energy, z, pv):
     h = h.T
     return h.astype('complex64')
 
+def ffactors(px, py, energy, zs, pv):
+    lambda_p = 1.23984122e-09 / energy
+    frequ_prefactors = [2 * np.pi  * lambda_p * zs[i] / pv ** 2 for i in range(len(different_distances))]
+    freq_x = fftfreq(px)
+    freq_y = fftfreq(py)
+    xi, eta = np.meshgrid(freq_x, freq_y)
+    xi = xi.astype('float32')
+    eta = eta.astype('float32')
+    h = [((np.exp(- 1j * frequ_prefactors[i] * (xi ** 2 + eta ** 2) / 2)).T).astype('complex64') for i in range(len(zs))]
+    return h
+
+
 def fresnel_operator(px, py, pv, z, energy):
     
     lambda0 = 1.23984122e-09 / energy
@@ -107,6 +119,8 @@ def grid_generator(shape_x, shape_y, upscale = 1, ps = 5.5e-06):
     
     return Fx, Fy
 
+
+
 def save_path_generator(**kwargs):
     try:
         file_name = os.path.splitext(os.path.basename(kwargs['image_path']))[0]
@@ -115,7 +129,10 @@ def save_path_generator(**kwargs):
     except:
         file_name = os.path.splitext(os.path.basename(kwargs['image_path'][0]))[0]
         folder = os.path.basename(os.path.dirname(kwargs['image_path'][0]))
-        
+    
+    if 'experiment_name' in kwargs.keys():
+        folder = kwargs['experiment_name']
+
     init_path = os.getcwd() + '/data/saved_weights/' + folder + '/'
     save_wpath = os.getcwd() + '/data/retrieved/' + folder + '/'
     if not os.path.exists(init_path):
@@ -127,108 +144,159 @@ def save_path_generator(**kwargs):
     kwargs['init_wpath'] = init_path
     return kwargs 
 
-def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, detector_pixel_size = 2.57 * 1e-6, distance_sample_detector = 0.15, alpha = 1e-8, delta_beta = 1e1, pad = 1, method = 'TIE', file_type = 'tif', image = None, phase_path= None, attenuation_path = None, phase_image = None, attenuation_image = None, **kwargs):
+ 
+ 
+def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, detector_pixel_size = 2.57 * 1e-6, distance_sample_detector = 0.15, alpha = 1e-8, delta_beta = 1e1, pad = 1, method = 'TIE', file_type = 'tif', image = None, **kwargs):
     """
     make sure that the unit of energy is in keV, the unit of detector_pixel_size is in meter, and the unit of distance_sample_detector is in meter
     """
-
+    if idx is not None and type(idx) is not list:
+        idx = [idx]
+    
+    if images is not None:
+        image = [images[i] for i in idx]
+    
     if path is not None:
-        images = list(io.imread_collection(path + '/*.' + file_type).files)
-        # images = sorted(glob(path + '/*.tif'))
-        if type(idx) is list:
+        
+        #if path is a folder
+        if type(path) is str and os.path.isdir(path):
+            images = list(io.imread_collection(path + '/*.' + file_type).files)
             image_path = [images[i] for i in idx]
             image = load_images_parallel(image_path)
-            shape_x = image[0].shape[0]
-            shape_y = image[0].shape[1]
-            Fx, Fy = grid_generator(shape_x, shape_y, upscale=pad, ps = detector_pixel_size)
-            ND = len(idx)
-            print("images are of leng", len(image))
+        #if path is a list of files
+        elif type(path) is list and not os.path.isfile(path[0]):
+            image_path = [path[i] for i in idx]
+            image = load_images_parallel(image_path)
+        elif type(path) is list and os.path.isdir(path[0]):
+            folders = path
+            images = []
+            for folder in folders:
+                images += list(io.imread_collection(folder + '/*.' + file_type).files)
+            image_path = [images[i] for i in idx]
+            image = load_images_parallel(image_path)
         else:
-            image_path = images[idx]
-            image = load_image(image_path)
-            shape_x = image.shape[0]
-            shape_y = image.shape[1]
-            Fx, Fy = grid_generator(shape_x, shape_y, upscale=pad, ps = detector_pixel_size)
+            image_path = path
+            image = load_images_parallel(image_path)
+
+    if image is not None:
+        if type(image) is list:
+            ND = len(image)
+            if len(image[0].shape) == 2:
+                shape_x, shape_y = image[0].shape
+                Fx, Fy = grid_generator(shape_x, shape_y, upscale=pad, ps = detector_pixel_size)
+                ND = 1
+                image_path = os.getcwd()
+            else:
+                shape_x, shape_y = image[0][0].shape
+                Fx, Fy = grid_generator(shape_x, shape_y, upscale=pad, ps = detector_pixel_size)
+        else:
             ND = 1
-        assert images is not None, "either image or path should be provided"
-        
+            shape_x, shape_y = image.shape
+            Fx, Fy = grid_generator(shape_x, shape_y, upscale=pad, ps = detector_pixel_size)
+        if image_path is None:
+            image_path = os.getcwd()
+        if images is None:
+            images = image
+
+        if 'correct' in kwargs.keys():
+            if kwargs['correct'] == True:
+                if 'mean_dark_image' and 'mean_ref_image' in kwargs.keys():
+                    mean_dark_image = kwargs['mean_dark_image']
+                    mean_ref_image = kwargs['mean_ref_image']
+                else: 
+                    all_images = list(io.imread_collection(path + '/*.' + file_type).files)
+                    mean_ref_image = np.mean(io.imread_collection([im_name for im_name in all_images if 'ref' in im_name]), axis = 0)
+                    mean_dark_image = np.mean(io.imread_collection([im_name for im_name in all_images if 'dar' in im_name]), axis = 0)
+                    
+                if len(image) > 1:
+                    image = [(image[i] - mean_dark_image) / (mean_ref_image - mean_dark_image) for i in range(len(image))]
+                else:
+                    image = (image - mean_dark_image) / (mean_ref_image - mean_dark_image)
+            
+        kwargs = {
+            "path": path,
+            "output_path" : os.getcwd(),
+            "idx": idx,
+            "column_name": 'path',
+            "energy_J": energy_kev_to_joule(energy_kev),
+            "energy_kev": energy_kev,
+            "lam": wavelength_from_energy(energy_kev),
+            "detector_pixel_size": detector_pixel_size,
+            "distance_sample_detector": distance_sample_detector,
+            "fresnel_number": fresnel_calculator(energy_kev = energy_kev, detector_pixel_size = detector_pixel_size, distance_sample_detector = distance_sample_detector),
+            "wave_number": wave_number(energy_kev),
+
+            "shape_x": shape_x,
+            "px": shape_x,
+            "shape_y": shape_y,
+            "py": shape_y,
+            "pad_mode": 'symmetric',
+            'shape': [int(shape_x), int(shape_y)],
+            'nx': int(shape_x), 'ny': int(shape_y),
+            'distance': [distance_sample_detector],
+            'z': distance_sample_detector,
+            
+            'energy': energy_kev, 
+            'alpha': alpha, 
+            'pad': pad,
+            'nfx': int(shape_x) * pad, 
+            'nfy': int(shape_y) * pad,
+            'pv': detector_pixel_size,
+            'pixel_size': [detector_pixel_size, detector_pixel_size],
+            'sample_frequency': [1.0/detector_pixel_size, 1.0/detector_pixel_size],
+            'fx': Fx, 'fy': Fy,
+            'method': method, 
+            'delta_beta': delta_beta,
+            "fresnel_factor":  fresnel_operator(int(shape_x), int(shape_y), detector_pixel_size, distance_sample_detector, wavelength_from_energy(energy_kev_to_joule(energy_kev),).magnitude, pad),
+            
+            "i_input": image[0],
+            "image_path": image_path,
+            "image": image,
+            "all_images": images,
+            "ND": ND,
+        } 
+        kwargs.update(save_path_generator(**kwargs))
+        return kwargs
+
     else:
-        assert images is not None, "either image or path should be provided"
-        image_path = images[idx]
-        image = load_image(images[idx])
-        Fx, Fy = grid_generator(image.shape[0], image.shape[1], upscale=1, ps = detector_pixel_size)
-        shape_x = image.shape[0]
-        shape_y = image.shape[1]
-        ND = 1
-    
-    
-    if phase_path is not None and attenuation_path is not None:
-        phase_images = io.imread_collection(phase_path + '/*.' + file_type).files
-        attenuation_images = io.imread_collection(attenuation_path + '/*.' + file_type).files
-        if type(idx) is list:
-            phase_image_path = []
-            attenuation_image_path = []
-            for i in idx:
-                phase_image_path.append(phase_images[i])
-                attenuation_image_path.append(attenuation_images[i])
-            phase_image = load_images_parallel(phase_image_path)
-            attenuation_image = load_images_parallel(attenuation_image_path)
+        
+        assert path is not None
+        if type(path) is str:
+            assert os.path.exists(path), "path does not exist"
+            if os.path.isdir(path):
+                images = list(io.imread_collection(path + '/*.' + file_type).files)
+                image_path = [images[i] for i in idx]
+                image = load_images_parallel(image_path)
+            else:
+                images = list(path)
+                image = load_image(path)
+            get_all_info(image=image, **kwargs)
+        elif type(path) is list:
+            path = [path[i] for i in idx]
+            if type(path[0]) is str:
+                #if the path[0] is a folder
+                if os.path.isdir(path[0]):
+                    images = list(io.imread_collection(path + '/*.' + file_type).files)
+                    image_path = [images[i] for i in idx]
+                else:
+                    image_path = path
+                image = load_images_parallel(image_path)
+            else:
+                image = [path[i] for i in idx]
+            get_all_info(image=image, **kwargs)
         else:
-            phase_image_path = phase_images[idx]
-            attenuation_image_path = attenuation_images[idx]
-            phase_image = load_image(phase_image_path)
-            attenuation_image = load_image(attenuation_image_path)
+            images = path
+            image = [images[i] for i in idx]
+            get_all_info(image=image, **kwargs)
 
-    kwargs = {
-        "path": path,
-        "output_path" : os.getcwd(),
-        "idx": idx,
-        "column_name": 'path',
-        "energy_J": energy_kev_to_joule(energy_kev),
-        "energy_kev": energy_kev,
-        "lam": wavelength_from_energy(energy_kev),
-        "detector_pixel_size": detector_pixel_size,
-        "distance_sample_detector": detector_pixel_size,
-        "fresnel_number": fresnel_calculator(energy_kev = energy_kev, detector_pixel_size = detector_pixel_size, distance_sample_detector = distance_sample_detector),
-        "wave_number": wave_number(energy_kev),
-
-        "shape_x": shape_x,
-        "shape_y": shape_y,
-        "pad_mode": 'symmetric',
-        'shape': [int(shape_x), int(shape_y)],
-        'nx': int(shape_x), 'ny': int(shape_y),
-        'distance': [distance_sample_detector], 
-        'energy': energy_kev, 
-        'alpha': alpha, 
-        'pad': pad,
-        'nfx': int(shape_x) * pad, 
-        'nfy': int(shape_y) * pad,
-        'pixel_size': [detector_pixel_size, detector_pixel_size],
-        'sample_frequency': [1.0/detector_pixel_size, 1.0/detector_pixel_size],
-        'fx': Fx, 'fy': Fy,
-        'method': method, 
-        'delta_beta': delta_beta,
-        "fresnel_factor":  fresnel_operator(int(shape_x) * pad, int(shape_y) * pad, detector_pixel_size, distance_sample_detector, energy_kev),
-        
-        "image_path": image_path,
-        "image": image,
-        "all_images": images,
-        "ND": ND,
-        
-        "phase_path": phase_path,
-        "attenuation_path": attenuation_path,
-        'phase_image': phase_image,
-        'attenuation_image': attenuation_image,
-    } 
-    kwargs.update(save_path_generator(**kwargs))
-    return kwargs
 
 
 def load_image(url):
-
-    img = io.imread(url)
-    return img
-
+    if type(url) is str:
+        return io.imread(url)
+    else:
+        return url
+    
 def load_images_parallel(urls = []):
     """using concurrent.futures"""
     import concurrent.futures
@@ -459,7 +527,7 @@ def wavelength_from_energy(energy):
         elif energy.dimensionality == pq.Quantity(1, 'm').dimensionality:
             energy = energy.rescale('J')
     else:
-        energy = pq.Quantity(energy, 'J')
+        energy = pq.Quantity(energy, 'KeV').rescale('J')
     return h*c/energy
 
 
@@ -534,6 +602,8 @@ def energy_from_wave_number(wave_number):
     return energy
 
 
+
+
 def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', random = True, cmap = 'None', figsize = (20, 20), title = ''):
     #if images is a pandas dataframe, convert to numpy array
         
@@ -573,7 +643,7 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
         else:
             images = [images[0,:,:,0] for image in images]
         images = [image[0,:, :, 0] for image in images]
-
+    main_title = title
     shape = images[0].shape
     if rows == 1 and cols == 1:
         figsize = (10,10)
@@ -581,13 +651,12 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
         plt.imshow(images[0]) if show_or_plot == 'show' else plt.plot(images[0][shape[0]//2, :])
         plt.axis('on')
         if random:
-            plt.title('min: ' + str(np.min(images))[:6] + ' max: ' + str(np.max(images))[:6] + 'im_' + str(random_numbers[0]), fontsize = 12)
+            plt.title('min: ' + str(np.min(images))[:8] + ' max: ' + str(np.max(images))[:6] + 'im_' + str(random_numbers[0]), fontsize = 12)
         else:
-            plt.title('min: ' + str(np.min(images))[:6] + ' max: ' + str(np.max(images))[:6], fontsize = 12)
-        if title != '':
-            plt.title(title)
+            plt.title('min: ' + str(np.min(images))[:8] + ' max: ' + str(np.max(images))[:6], fontsize = 12)
         #if cmap is 
         fig.colorbar(plt.imshow(images[0])) if show_or_plot == 'show' else None
+        plt.title(main_title)
         plt.gray()
         plt.show()
         return None
@@ -606,7 +675,6 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
                 if random:
                     if title == '':
                         title = 'min: ' + str(np.min(images[j]))[:6] + ' max: ' + str(np.max(images[j]))[:6] + 'im_' + str(random_numbers[counter])
-
                     if type(title) == list:
                         title = title[counter]
                     if type(title) == str and title != '':
@@ -676,6 +744,7 @@ def plot_or_show_images(images, rows = 1, cols = 5, show_or_plot = 'plot', rando
                     fig.colorbar(ax[i, j].imshow(images[counter]), ax=ax[i, j])
                 counter += 1
     plt.gray()
+    plt.title(main_title)
     plt.show()
     return None
 
@@ -690,5 +759,3 @@ def visualize_interact(pure = []):
     from ipywidgets import interact
     from IPython.display import display
     interact(visualize, pure = widgets.fixed(pure), show_or_plot = widgets.Dropdown(options=['show', 'plot'], value='show', description='Show or plot:'), rows = widgets.IntSlider(min=1, max=10, step=1, value=1, description='Rows:'), cols = widgets.IntSlider(min=1, max=10, step=1, value=3, description='Columns:'))
-     
- 
