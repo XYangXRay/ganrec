@@ -26,41 +26,41 @@ def L2_error(y_pred, y_true):
 def L1_L2_error(y_pred, y_true):
     return torch.mean(torch.abs(y_pred - y_true) + torch.pow(y_pred - y_true, 2))
 
-def tik_reg(y_pred, y_true, alpha = 1e-8):
+def tik_reg(y_pred, y_true, alpha = 1e-3):
     return torch.mean(torch.abs(y_pred - y_true) + alpha * torch.pow(y_pred, 2))
 
 args = {
-        "path": None,
-        "idx": 0,
-        "energy_kev": 18.0,
-        "detector_pixel_size": 2.57 * 1e-6,
-        "distance_sample_detector": 0.15,
-        "alpha": 1e-8,
-        "delta_beta": 1,
-        "pad": 1,
-        "method": 'TIE',
-        'iter_num': 500,
-        'conv_num': 32,
-        'conv_size': 3,
-        'dropout': 0.25,
-        'l1_ratio': 10,
-        'abs_ratio': 1.0,
-        'g_learning_rate': 1e-3,
-        'd_learning_rate': 1e-5,
-        'phase_only': False,
-        'save_wpath': None,
-        'init_wpath': None,
-        'init_model': False,
-        'recon_monitor': True,
-        'seed': 42,
-        'pad': 1,
-        'alpha': 1e-8,
-        'iter_num': 100,
-        'output_num': 2,
-        'init_model': False,
-        'transform_type': 'reshape',
-        'transform_factor': 0.5,
-        'file_type': 'tif',
+        'path': None,           #path to the folder containing the images or the image itself
+        'images': io.imread('data/gan_phase/data_spider.tif'),  #you can insert the image directly as an alternative
+        'idx': 2,               #list(np.arange(0, 70, 10)), #is the index of the image to be used if there are multiple images in images or path
+        'energy_kev': 11,       #energy of the beam
+        'detector_pixel_size': 1.04735263e-7,  #pixel size of the detector 
+        'distance_sample_detector': 7.8880960e-2, #distance between the sample and the detector
+        'pad': 2,                #padding for the images, usually 2 or 4, and helps to reduce the boundary effect
+        'alpha': 1e-8,           #multiplies the regularization term
+        'iter_num': 100,         #number of iterations
+        'init_model': False,     #if True, load the model from the model_path
+        'output_num': 2,         #number of output images from the generator
+        'transform_type': 'normalize', #can be normalize, brightness, contrast, gamma, log, sigmoid, norm
+        'transform_factor': 0.5, #if brightness, contrast, gamma, sigmoid, norm is chosen, this is the factor
+        'file_type': 'tif',      #can be tif or npy, tiff, 
+        'device': 'cuda:3',      #can be 'cpu' or 'cuda:x'
+        'abs_ratio': 0.05,       #a factor to multiply the generated absorption
+        'mode' : 'constant',     #can be reflect, constant, circular
+        'value': 'mean',         #used when constant is chosen. Either a number or 'mean'
+        "delta_beta": 1,         # some algorithm use this number as a factor between the phase and the absorption
+        "method": 'TIE',         #in some cases in which we need to specify which classical method to use
+        'conv_num': 32,          #number of convolutional filters in the first layer of the generator
+        'conv_size': 3,          #size of the convolutional filters in the first layer of the generator
+        'dropout': 0.25,         #dropout rate
+        'l1_ratio': 10,          #factor for the L1 and L2 loss
+        'g_learning_rate': 1e-3, #learning rate for the generator
+        'd_learning_rate': 1e-5, #learning rate for the discriminator
+        'phase_only': False,     #if True, only the phase is used as the input to the generator, meaning abs_ratio = 0
+        'save_wpath': None,      #path to save the model
+        'init_wpath': None,      #path to load the model
+        'recon_monitor': False,  #if True, the reconstruction error is monitored
+        'seed': 42,              #seed for the random number generator
     }
 
 def get_args():
@@ -167,6 +167,43 @@ def torch_detector(image):
     image = torch.abs(image)**2
     return image
 
+def transform(image, transform_type = None, factor = None):
+    if transform_type is None:
+        transform_type = 'reshape'
+    if factor is None:
+        factor = 0.5
+    if transform_type == 'reshape':
+        image = torch_reshape(image)
+    elif transform_type == 'normalize':
+        image = torchnor_phase(image)
+    elif transform_type == 'norm':
+        image = torch_norm(image)
+    elif transform_type == 'contrast':
+        image = torch_reshape(image)
+        image = torch_contrast(image, factor)
+    elif transform_type == 'contrast_normalize':
+        image = torch_reshape(image)
+        image = torch_contrast(image, factor)
+        image = torchnor_phase(image)
+    elif transform_type == 'contrast_norm':
+        image = torch_reshape(image)
+        image = torch_contrast(image, factor)
+        image = torch_norm(image)
+    elif transform_type == 'brightness':
+        image = torch_reshape(image)
+        image = torch_brightness(image, factor)
+    elif transform_type == 'brightness_normalize':
+        image = torch_reshape(image)
+        image = torch_brightness(image, factor)
+        image = torchnor_phase(image)
+    elif transform_type == 'brightness_norm':
+        image = torch_reshape(image)
+        image = torch_brightness(image, factor)
+        image = torch_norm(image)
+    else:
+        image = torch_reshape(image)
+    return image
+
 def live_plot(self):
     import matplotlib.pyplot as plt
     from IPython.display import clear_output
@@ -233,6 +270,13 @@ def ssim(img1, img2):
     return ssim
 
 def forward_propagate(shape_x = None, shape_y = None, pad = None, energy_kev = None, detector_pixel_size = None, distance_sample_detector = None, phase_image = None, attenuation_image = None, fresnel_factor  = None, wavefield = None, distance = None, mode = 'constant', value = 1, **kwargs):
+    """
+    If the phase and attenuation are provided, it uses them to create the wavefield. Otherwise, it uses the wavefield provided.
+    this function propagates the wavefield from the sample to the detector. If fresnel_factor is not provided, it calculates it.
+
+    You can use the **dataloader.kwargs() as an input to this function:
+    """
+    
     assert phase_image is not None or attenuation_image is not None, "phase_image and attenuation_image are not provided"
     if fresnel_factor is None:
         if distance is None:
@@ -314,6 +358,22 @@ def forward_propagate(shape_x = None, shape_y = None, pad = None, energy_kev = N
     return I
     
 class Ganrec_Dataloader(torch.utils.data.Dataset):
+    """
+    The dataloader takes the different arguements and arranges it in a way that it can be used for the training and other purposes.
+    ********************************
+    Transform_type can be: 'reshape', 'normalize', 'contrast', 'contrast_normalize', 'brightness', 'norm'
+    The image is then saved in the transformed_images variable. This will be used for the training.
+
+    If there are multiple images, the idx variable is used to choose the image. 
+    Batch_size is the number of images in the batch, which can be used for the training. 
+    The batch_images variable is used to get the batch of images. The idx_batches variable is used to get the
+    
+    get_all_info() is used to get the information about the image and the fresnel factor.
+
+    If phase and attenuation are provided, the forward propagation is done and saved in the propagated_forward variable.
+    The fresnel factor is also saved in the fresnel_factor variable.
+    ********************************
+    """
     def __init__(self,**kwargs):
         self.kwargs = get_args()
         self.kwargs.update(kwargs)
@@ -321,26 +381,8 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
         keys = self.kwargs.keys()
         [self.__setattr__(key, self.kwargs[key]) for key in keys]
         self.dims = (self.ND, self.shape_x, self.shape_y)
-        if self.kwargs['transform_type'] == 'reshape':
-            self.transformed_images = torch_reshape(self.image)
-        elif self.kwargs['transform_type'] == 'normalize':
-            self.transformed_images = torchnor_phase(self.image)
-        elif self.kwargs['transform_type'] == 'contrast':
-            self.transformed_images = torch_reshape(self.image)
-            self.transformed_images = torch_contrast(self.transformed_images, kwargs['transform_factor'])
-        elif self.kwargs['transform_type'] == 'contrast_normalize':
-            self.transformed_images = torch_reshape(self.image)
-            self.transformed_images = torch_contrast(self.transformed_images, kwargs['transform_factor'])
-            self.transformed_images = torchnor_phase(self.transformed_images)
-        elif self.kwargs['transform_type'] == 'brightness':
-            self.transformed_images = torch_reshape(self.image)
-            self.transformed_images = torch_brightness(self.transformed_images,  kwargs['transform_factor'])
-        elif self.kwargs['transform_type'] == 'norm':
-            self.transformed_images = torch_norm(self.image)
-
-        else:
-            self.transformed_images = torch_reshape(self.image)
-    
+        
+        self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor'])
         self.batch_size = self.transformed_images.shape[0]
         super(Ganrec_Dataloader, self).__init__()
 
@@ -386,7 +428,30 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
         batch_images = Parallel(n_jobs=n_jobs)(delayed(self.__getitem__)(idx, transform_type) for idx in idx_batches)
         return batch_images, idx_batches
     
-        
+    def update_values(self, change_all = False, **info):
+        """
+        This function is used to update the values of the dataloader. 
+        If the change is a shouldn't affect values from the get_all_info() function, then change_all should be False.
+        Otherwise, it should be True.
+        """
+
+        if change_all:
+            kwargs = self.kwargs
+            kwargs.update(info)
+            kwargs.update(get_all_info(**kwargs))
+            [self.__setattr__(key, kwargs[key]) for key in kwargs.keys()]
+            self.transformed_images = transform(self.image, kwargs['transform_type'], kwargs['transform_factor'])
+            self.dims = (self.ND, self.shape_x, self.shape_y)
+            print(self.kwargs['transform_type'])
+        else:
+            kwargs = self.kwargs
+            kwargs.update(info)
+            [self.__setattr__(key, info[key]) for key in info.keys()]
+            if 'transform_type' in info.keys() or 'transform_factor' in info.keys():
+                self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor'])
+                self.dims = (self.ND, self.shape_x, self.shape_y)
+                print(self.kwargs['transform_type'])
+            
     def normalize(self, idx = None, transform_type = None):
         image = self.__getitem__(idx, transform_type)
         # image = torchnor_phase(image)
@@ -558,9 +623,6 @@ class unet_Module(nn.Module):
             print('epoch: {}, loss: {}'.format(epoch, loss))
         return intensity, phase, attenuation
 
-criterionGAN = torch.nn.MSELoss()
-criterionL1 = torch.nn.L1Loss()
-criterion_identity = torch.nn.L1Loss()
 
 class unet_light(pl.LightningModule):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding, depth, bias, batch_norm, activation):
