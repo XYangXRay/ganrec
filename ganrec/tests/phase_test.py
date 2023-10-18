@@ -8,16 +8,16 @@ def main():
     z = 0.5
     pv = 5e-7
     iter_num = 1000
-    fname_data = '/data/gan_phase/ifp_shepp.tiff'
+    fname_data = '/home/xiaogang/data/gan_phase/ifp_shepp.tiff'
     data = dxchange.read_tiff(fname_data)
     px, _ = data.shape
     data = nor_phase(data)
-    gan_phase_object = GANphase(data, energy, z, pv)
+    gan_phase_object = GANphase(data, energy, z, pv, iter_num=2000)
     start = time.time()
     rec = gan_phase_object.recon
     end = time.time()
     print('Running time is {}'.format(end - start))
-    dxchange.write_tiff(rec.reshape((px, px)), '/data/gan_phase/test', overwrite=True)
+    dxchange.write_tiff(rec.reshape((px, px)), '/home/xiaogang/data/gan_phase/test', overwrite=True)
 
 
 if __name__ == "__main__":
