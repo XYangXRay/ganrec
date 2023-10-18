@@ -56,5 +56,5 @@ class PhaseFraunhofer:
         ifp = tf.signal.fftshift(ifp)
         ifp = tf.reshape(ifp, [1, ifp.shape[0], ifp.shape[1], 1])
         ifp = tf.image.per_image_standardization(ifp)
-        ifp = self.tfnor_diff(ifp)
+        # ifp = self.tfnor_diff(ifp)
         return ifp

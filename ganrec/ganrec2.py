@@ -841,10 +841,13 @@ class GANdiffraction:
             absorption = tf.reshape(absorption, [self.px, self.px])
             if self.phase_only:
                 absorption = tf.zeros_like(phase)
-            i_rec = phase_fraunhofer(phase, absorption)
+            
+            phase_obj = PhaseFraunhofer(phase, absorption)
+            i_rec = phase_obj.compute()
+            # i_rec = phase_fraunhofer(phase, absorption)
             mask = tf.reshape(self.mask, [1, self.mask.shape[0], self.mask.shape[1], 1])
             # i_rec = tf.multiply(i_rec, mask)
-            # i_rec = tfnor_diff(i_rec)
+            i_rec = tfnor_diff(i_rec)
             real_output = self.discriminator(i_input, training=True)
             fake_output = self.discriminator(i_rec, training=True)
             g_loss = generator_loss(fake_output, i_input, i_rec, self.l1_ratio)
