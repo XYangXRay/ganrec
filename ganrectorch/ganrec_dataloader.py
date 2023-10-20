@@ -200,6 +200,9 @@ def transform(image, transform_type = None, factor = None):
         image = torch_reshape(image)
         image = torch_brightness(image, factor)
         image = torch_norm(image)
+    elif transform_type == 'fourier':
+        image = torch_reshape(image)
+        image = torch.fft.fft2(image)
     else:
         image = torch_reshape(image)
     return image
@@ -276,6 +279,10 @@ def forward_propagate(shape_x = None, shape_y = None, pad = None, energy_kev = N
 
     You can use the **dataloader.kwargs() as an input to this function:
     """
+    if 'phase' in kwargs.keys():
+        phase_image = kwargs['phase']
+    if 'attenuation' in kwargs.keys():
+        attenuation_image = kwargs['attenuation']
     
     assert phase_image is not None or attenuation_image is not None, "phase_image and attenuation_image are not provided"
     if fresnel_factor is None:
@@ -383,6 +390,9 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
         self.dims = (self.ND, self.shape_x, self.shape_y)
         
         self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor'])
+        self.kwargs['transform_type'] = self.transform_type
+        self.kwargs['transform_factor'] = self.transform_factor
+        self.kwargs['transformed_images'] = self.transformed_images
         self.batch_size = self.transformed_images.shape[0]
         super(Ganrec_Dataloader, self).__init__()
 
@@ -460,7 +470,7 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
     def get_kwargs(self):
         return self.__dict__
     
-    def visualize(self, idx = None, random = False, show_or_plot = 'show', tranformed = False):
+    def visualize(self, idx = None, show_or_plot = 'show', tranformed = False):
         if idx is not None:
             kwargs = self.kwargs
             kwargs["idx"] = idx
@@ -484,7 +494,7 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
             cols = len(images)
         else:
             cols = rows + 1
-        fig = visualize(images, rows=rows, cols = cols, random=random, show_or_plot = show_or_plot)
+        fig = visualize(images, rows=rows, cols = cols, show_or_plot = show_or_plot)
         return fig
     
     def forward_propagate(self, distance = None):
