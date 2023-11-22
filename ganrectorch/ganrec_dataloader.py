@@ -1,22 +1,17 @@
 import torch
 import skimage.io as io
 import numpy as np
-from utils import *
-import sys
-# sys.stdout = open('prints.txt', 'w')
 
 from utils import *
-import torch
-import torchvision.models as models
 import torch.nn as nn
 import torch.nn.functional as F
 
 import torchvision.transforms as transforms
 from joblib import Parallel, delayed
-from torchsummary import summary
 
-    
+# import torchvision.models as models
 import pytorch_lightning as pl
+
 def L1_error(y_pred, y_true):
     return torch.mean(torch.abs(y_pred - y_true))
 
@@ -29,10 +24,11 @@ def L1_L2_error(y_pred, y_true):
 def tik_reg(y_pred, y_true, alpha = 1e-3):
     return torch.mean(torch.abs(y_pred - y_true) + alpha * torch.pow(y_pred, 2))
 
+""" as an example, we give this arg value to run. You can change it as you wish."""
 args = {
         'path': None,           #path to the folder containing the images or the image itself
         'images': io.imread('data/gan_phase/data_spider.tif'),  #you can insert the image directly as an alternative
-        'idx': 2,               #list(np.arange(0, 70, 10)), #is the index of the image to be used if there are multiple images in images or path
+        'idx': 0,               #list(np.arange(0, 70, 10)), #is the index of the image to be used if there are multiple images in images or path
         'energy_kev': 11,       #energy of the beam
         'detector_pixel_size': 1.04735263e-7,  #pixel size of the detector 
         'distance_sample_detector': 7.8880960e-2, #distance between the sample and the detector
@@ -49,11 +45,12 @@ args = {
         'mode' : 'constant',     #can be reflect, constant, circular
         'value': 'mean',         #used when constant is chosen. Either a number or 'mean'
         "delta_beta": 1,         # some algorithm use this number as a factor between the phase and the absorption
-        "method": 'TIE',         #in some cases in which we need to specify which classical method to use
+        "method": 'GanREC',         #in some cases in which we need to specify which classical method to use
         'conv_num': 32,          #number of convolutional filters in the first layer of the generator
         'conv_size': 3,          #size of the convolutional filters in the first layer of the generator
         'dropout': 0.25,         #dropout rate
         'l1_ratio': 10,          #factor for the L1 and L2 loss
+        'lr': 1e-3,              #learning rate
         'g_learning_rate': 1e-3, #learning rate for the generator
         'd_learning_rate': 1e-5, #learning rate for the discriminator
         'phase_only': False,     #if True, only the phase is used as the input to the generator, meaning abs_ratio = 0
@@ -61,6 +58,11 @@ args = {
         'init_wpath': None,      #path to load the model
         'recon_monitor': False,  #if True, the reconstruction error is monitored
         'seed': 42,              #seed for the random number generator
+        'normal_init': True,
+        'apply_batchnorm:': True,
+        'fc_depth': 4,
+        'cnn_depth':4,
+        'dis_depth': 4,
     }
 
 def get_args():
@@ -70,36 +72,86 @@ def tensor_to_np(tensor):
     if type(tensor) is list:
         if len(tensor[0].shape) <= 2:
             try:
-                return [t.detach().cpu().numpy() for t in tensor]
+                val = [t.detach().cpu().numpy() for t in tensor]
             except:
-                return [t.numpy()(t) for t in tensor]
+                val = [t.numpy()(t) for t in tensor]
         elif len(tensor[0].shape) == 3:
             try:
-                return [t.detach().cpu().numpy()[0,:,:] for t in tensor]
+                val = [t.detach().cpu().numpy()[:,:,:] for t in tensor]
             except:
-                return [t.numpy()[0,:,:] for t in tensor]
+                val = [t.numpy()[:,:,:] for t in tensor]
         else:
             try:
-                return [t.detach().cpu().numpy()[0,0,:,:] for t in tensor]
+                val = [t.detach().cpu().numpy()[:,0,:,:] for t in tensor]
             except:
-                return [t.numpy()[0,0,:,:] for t in tensor]
+                val = [t.numpy()[:,0,:,:] for t in tensor]
     else:
         if len(tensor.shape) <= 2:
             try:
-                return tensor.detach().cpu().numpy()
+               val = tensor.detach().cpu().numpy()
             except:
-                return tensor.numpy()
+                val = tensor.numpy()
         elif len(tensor.shape) == 3:
             try:
-                return tensor.detach().cpu().numpy()[0,:,:]
+                val = [tensor.detach().cpu().numpy()[j,:,:] for j in range(len(tensor))]
             except:
-                return tensor.numpy()[0,:,:]
+                val = [tensor.numpy()[j,:,:] for j in range(len(tensor))]
         else:
             try:
-                return tensor.detach().cpu().numpy()[0,0,:,:]
+                val = [tensor.detach().cpu().numpy()[j,0,:,:] for j in range(len(tensor))]
             except:
-                return tensor.numpy()[0,0,:,:]
+               val = [tensor.numpy()[j,0,:,:] for j in range(len(tensor))]
+    return val
+
+def val_from_images(image, type_of_image = 'nd.array'):
+    if 'ndarray' in str(type_of_image):
+        if len(image.shape) == 2:
+            val = image
+        elif len(image.shape) == 3:
+            val = [image[j,:,:] for j in range(len(image))]
+        else:
+            val = [image[j,0,:,:] for j in range(len(image))]
+    elif 'Tensor' in str(type_of_image):
+        from ganrec_dataloader import tensor_to_np
+        image = tensor_to_np(image)
+        if type(image) is not list:
+            if len(image.shape) == 2:
+                val = image
+            elif len(image.shape) == 3:
+                val = [image[j,:,:] for j in range(len(image))]
+            else:
+                val = [image[j,0,:,:] for j in range(len(image))]
+        else:
+            val = image
+    elif type_of_image == 'str':
+        val = io.imread_collection(image)
+    elif 'collection' in str(type_of_image):
+        val = image
+    elif 'list' in str(type_of_image):
+        val = [val_from_images(image, type_of_image = type(image)) for image in image]
+    else:
+        assert False, "type_of_image is not nd.array, list or torch.Tensor"
+    return val
     
+def convert_images(images, idx = None):
+    if idx is not None:
+        images = [images[i] for i in idx]
+    if type(images) is list:
+        vals = [val_from_images(image, type_of_image = type(image)) for image in images]
+
+        for i, val in enumerate(vals):
+            if type(val) is list:
+                [vals.append(val[j]) for j in range(len(val))]
+                vals.pop(i)
+        images = vals
+    else:
+        images = val_from_images(images, type_of_image = type(images))
+    for i, val in enumerate(images):
+        if type(val) is list:
+            [images.append(val[j]) for j in range(len(val))]
+            images.pop(i)
+    return images
+
 def torch_reshape(image, complex = False):
     #if it's tensor and of shape 4, return the image
     if type(image) is torch.Tensor and len(image.shape) == 4:
@@ -128,7 +180,6 @@ def torch_reshape(image, complex = False):
         image = image.unsqueeze(0)    
     elif len(image.shape) > 5:
         image = image.squeeze(1)
-        print("Image shape not supported")
         return image
     
     #rearrange the dimension of the image [batch, channel, x, y]
@@ -203,31 +254,19 @@ def transform(image, transform_type = None, factor = None):
     elif transform_type == 'fourier':
         image = torch_reshape(image)
         image = torch.fft.fft2(image)
+    elif transform_type =='minmax':
+        image = torch_reshape(image)
+        image = (image - torch.min(image))/(torch.max(image) - torch.min(image))
+    elif transform_type == '-1to1':
+        image = torch_reshape(image)
+        image = (image - torch.mean(image))/torch.std(image)
+        image = (image - torch.min(image))/(torch.max(image) - torch.min(image))
+    elif transform_type == 'log':
+        image = torch_reshape(image)
+        image = torch.log(image)
     else:
         image = torch_reshape(image)
     return image
-
-def live_plot(self):
-    import matplotlib.pyplot as plt
-    from IPython.display import clear_output
-    for i in range(self.iter_num):
-        clear_output(wait=True)
-        plt.figure(figsize=(20,10))
-        plt.subplot(1,3,3)
-        plt.plot(tensor_to_np(self.gen_loss_list), label='gen_loss')
-        plt.plot(tensor_to_np(self.dis_loss_list), label='dis_loss')
-        plt.title('iteration: '+str(i))
-        plt.legend()
-        plt.subplot(1,3,1)
-        plt.title('propagated_intensity')
-        plt.imshow(tensor_to_np(self.propagated_intensity_list[i]), cmap='gray')
-        plt.colorbar()
-        plt.subplot(1,3,2)
-        plt.title('phase')
-        plt.imshow(tensor_to_np(self.phase_list[i]), cmap='coolwarm')
-        plt.colorbar()
-        plt.gca()
-        plt.show()
 
 def FresnelPropagator(phase, absorption, ff, ref_image = None, dark_image = None):
     """  
@@ -257,6 +296,28 @@ def FresnelPropagator(phase, absorption, ff, ref_image = None, dark_image = None
         I = I * (ref_image - dark_image) + dark_image
     I = torch_reshape(I) #without normalizing
     return I
+
+def live_plot(self):
+    import matplotlib.pyplot as plt
+    from IPython.display import clear_output
+    for i in range(self.iter_num):
+        clear_output(wait=True)
+        plt.figure(figsize=(20,10))
+        plt.subplot(1,3,3)
+        plt.plot(tensor_to_np(self.gen_loss_list), label='gen_loss')
+        plt.plot(tensor_to_np(self.dis_loss_list), label='dis_loss')
+        plt.title('iteration: '+str(i))
+        plt.legend()
+        plt.subplot(1,3,1)
+        plt.title('propagated_intensity')
+        plt.imshow(tensor_to_np(self.propagated_intensity_list[i]), cmap='gray')
+        plt.colorbar()
+        plt.subplot(1,3,2)
+        plt.title('phase')
+        plt.imshow(tensor_to_np(self.phase_list[i]), cmap='coolwarm')
+        plt.colorbar()
+        plt.gca()
+        plt.show()
 
 def ssim(img1, img2):
     """
@@ -362,8 +423,8 @@ def forward_propagate(shape_x = None, shape_y = None, pad = None, energy_kev = N
     I = (torch.abs(torch.fft.ifft2(fresnel_factor * torch.fft.fft2(wavefield)))**2)
     I = I[:, :, int((I.shape[2] - shape_x)/2):int((I.shape[2] + shape_x)/2), int((I.shape[3] - shape_y)/2):int((I.shape[3] + shape_y)/2)]
     I = torch_reshape(I)
-    return I
-    
+    return I  
+
 class Ganrec_Dataloader(torch.utils.data.Dataset):
     """
     The dataloader takes the different arguements and arranges it in a way that it can be used for the training and other purposes.
@@ -384,17 +445,31 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
     def __init__(self,**kwargs):
         self.kwargs = get_args()
         self.kwargs.update(kwargs)
+        
+        if 'downsampling_factor' not in self.kwargs.keys():
+            self.kwargs['downsampling_factor'] = 1
+        else:
+            from skimage.transform import resize
+            
         self.kwargs.update(get_all_info(**kwargs))
+        if 'phase' not in self.kwargs.keys() and 'attenuation' not in self.kwargs.keys():
+            kwargs['phase'] = None
+            kwargs['attenuation'] = None
         keys = self.kwargs.keys()
         [self.__setattr__(key, self.kwargs[key]) for key in keys]
         self.dims = (self.ND, self.shape_x, self.shape_y)
-        
         self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor'])
         self.kwargs['transform_type'] = self.transform_type
         self.kwargs['transform_factor'] = self.transform_factor
         self.kwargs['transformed_images'] = self.transformed_images
         self.batch_size = self.transformed_images.shape[0]
         super(Ganrec_Dataloader, self).__init__()
+        if 'mode' in self.kwargs.keys():
+            self.mode = self.kwargs['mode']
+        else:
+            self.mode = 'reflect'
+        if 'value' in self.kwargs.keys():
+            self.value = self.kwargs['value']
 
     def __len__(self):
         return len(self.image_path)
@@ -457,10 +532,12 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
             kwargs = self.kwargs
             kwargs.update(info)
             [self.__setattr__(key, info[key]) for key in info.keys()]
-            if 'transform_type' in info.keys() or 'transform_factor' in info.keys():
-                self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor'])
-                self.dims = (self.ND, self.shape_x, self.shape_y)
-                print(self.kwargs['transform_type'])
+            # if 'transform_type' in info.keys() or 'transform_factor' in info.keys():
+            #     self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor'])
+            #     self.dims = (self.ND, self.shape_x, self.shape_y)
+            #     print(self.kwargs['transform_type'])
+        
+        return self
             
     def normalize(self, idx = None, transform_type = None):
         image = self.__getitem__(idx, transform_type)
@@ -489,23 +566,17 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
         if type(images) is not list:
             # images = [images]
             images = list(images)
-        rows = int(np.sqrt(len(images)))
-        if rows ==1:
-            cols = len(images)
-        else:
-            cols = rows + 1
-        fig = visualize(images, rows=rows, cols = cols, show_or_plot = show_or_plot)
+        fig = visualize(images, show_or_plot = show_or_plot)
         return fig
     
     def forward_propagate(self, distance = None):
         distance = self.distance_sample_detector if distance is None else distance
         wavefield = None if 'wavefield' not in self.kwargs.keys() else self.kwargs['wavefield']
-        print(distance)
 
         if type(distance) is not list:
-            self.propagated_forward = forward_propagate(shape_x = self.shape_x, shape_y = self.shape_y, pad = self.pad, energy_kev = self.energy_kev, detector_pixel_size = self.detector_pixel_size, distance_sample_detector = distance, phase_image = self.phase, attenuation_image = self.attenuation, fresnel_factor  = self.fresnel_factor, wavefield = wavefield, distance = distance)
+            self.propagated_forward = forward_propagate(shape_x = self.shape_x, shape_y = self.shape_y, pad = self.pad, energy_kev = self.energy_kev, detector_pixel_size = self.detector_pixel_size, distance_sample_detector = distance, phase_image = self.phase, attenuation_image = self.attenuation, fresnel_factor  = self.fresnel_factor, wavefield = wavefield, distance = distance, mode = self.mode, value = self.value)
         else:
-            propagated_forward = [forward_propagate(shape_x = self.shape_x, shape_y = self.shape_y, pad = self.pad, energy_kev = self.energy_kev, detector_pixel_size = self.detector_pixel_size, distance_sample_detector = distance[i], phase_image = self.phase, attenuation_image = self.attenuation, fresnel_factor  = None, wavefield = wavefield, distance = distance[i]) for i in range(len(distance))]
+            propagated_forward = [forward_propagate(shape_x = self.shape_x, shape_y = self.shape_y, pad = self.pad, energy_kev = self.energy_kev, detector_pixel_size = self.detector_pixel_size, distance_sample_detector = distance[i], phase_image = self.phase, attenuation_image = self.attenuation, fresnel_factor  = None, wavefield = wavefield, distance = distance[i], mode=self.mode, value=self.value) for i in range(len(distance))]
             self.propagated_forward = torch.stack(propagated_forward, dim = 0)[:,0,:,:,:]
             print(self.propagated_forward.shape)
         return self.propagated_forward
@@ -632,7 +703,6 @@ class unet_Module(nn.Module):
             optimizer.step()
             print('epoch: {}, loss: {}'.format(epoch, loss))
         return intensity, phase, attenuation
-
 
 class unet_light(pl.LightningModule):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding, depth, bias, batch_norm, activation):

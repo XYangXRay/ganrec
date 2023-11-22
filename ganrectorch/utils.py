@@ -4,16 +4,20 @@ from numpy import pi
 import matplotlib.pyplot as plt
 import os 
 import skimage.io as io
-import seaborn as sns
-
+from skimage.transform import resize
+import quantities as pq
 def nor_phase(img):
     mean_tmp = np.mean(img)
     std_tmp = np.std(img)
     img = (img - mean_tmp) / std_tmp
     return img
 
+def makedirs(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-def ffactor(px, py, energy, z, pv):
+
+def ffactor(px, py, energy, z, pv, return_both = False):
     lambda_p = 1.23984122e-09 / energy
     frequ_prefactor = 2 * np.pi * lambda_p * z / pv ** 2
     freq_1 = fftfreq(px)
@@ -21,18 +25,28 @@ def ffactor(px, py, energy, z, pv):
     xi, eta = np.meshgrid(freq_1, freq_2)
     xi = xi.astype('float32')
     eta = eta.astype('float32')
-    h = np.exp(- 1j * frequ_prefactor * (xi ** 2 + eta ** 2) / 2)
-    return h
+    if return_both==False:
+        return np.exp(- 1j * frequ_prefactor * (xi ** 2 + eta ** 2) / 2)
+    else:
+        
+        base = np.exp((xi ** 2 + eta ** 2) / 2)
+        h = base**(-1j*frequ_prefactor)
+        return h, base
 
 def ffactors(px, py, energy, zs, pv):
     lambda_p = 1.23984122e-09 / energy
-    frequ_prefactors = [2 * np.pi  * lambda_p * zs[i] / pv ** 2 for i in range(len(zs))]
+    
     freq_x = fftfreq(px)
     freq_y = fftfreq(py)
     xi, eta = np.meshgrid(freq_x, freq_y)
     xi = xi.astype('float32')
     eta = eta.astype('float32')
-    h = [((np.exp(- 1j * frequ_prefactors[i] * (xi ** 2 + eta ** 2) / 2)).T).astype('complex64') for i in range(len(zs))]
+    if type(zs) is not list:
+        frequ_prefactors = 2 * np.pi  * lambda_p * zs / pv ** 2
+        h = np.exp(- 1j * frequ_prefactors * (xi ** 2 + eta ** 2) / 2)
+    else:
+        frequ_prefactors = [2 * np.pi  * lambda_p * zs[i] / pv ** 2 for i in range(len(zs))]
+        h = [((np.exp(- 1j * frequ_prefactors[i] * (xi ** 2 + eta ** 2) / 2)).T).astype('complex64') for i in range(len(zs))]
     return h
 
 
@@ -183,13 +197,42 @@ def segment(image, type = 'chan_vese'):
         print('wrong type')
         return image
 
+def ffactors(px, py, energy, zs, pv):
+    lambda_p = 1.23984122e-09 / energy
+    
+    freq_x = fftfreq(px)
+    freq_y = fftfreq(py)
+    xi, eta = np.meshgrid(freq_x, freq_y)
+    xi = xi.astype('float32')
+    eta = eta.astype('float32')
+    if type(zs) is not list:
+        frequ_prefactors = 2 * np.pi  * lambda_p * zs / pv ** 2
+        h = np.exp(- 1j * frequ_prefactors * (xi ** 2 + eta ** 2) / 2)
+    else:
+        frequ_prefactors = [2 * np.pi  * lambda_p * zs[i] / pv ** 2 for i in range(len(zs))]
+        h = [((np.exp(- 1j * frequ_prefactors[i] * (xi ** 2 + eta ** 2) / 2)).T).astype('complex64') for i in range(len(zs))]
+    return h
 
-def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, detector_pixel_size = 2.57 * 1e-6, distance_sample_detector = 0.15, alpha = 1e-8, delta_beta = 1e1, pad = 1, method = 'TIE', file_type = 'tif', image = None, **kwargs):
+def resize_an_image_and_view(image_list, view_factor, ratio=None, title = None, rotate = True):
+    if type(image_list) is not list:
+        image_list = [image_list]
+    new_shape = image_list[-1].shape
+    new_shape = (new_shape[0]*view_factor, new_shape[1]*view_factor)
+    resized_images = [resize(image, new_shape, anti_aliasing=True) for image in image_list]
+    if rotate:
+        rotated_images = [np.rot90(image) for image in resized_images]
+        f = visualize(rotated_images, title=title, cmap='Greens_r', show_or_plot='show', dict=ratio)
+    else:
+        f = visualize(resized_images, title=title, cmap='Greens_r', show_or_plot='show', dict=ratio)
+
+def get_all_info(path = None, images = None, idx = None, energy_kev = None, detector_pixel_size =None, distance_sample_detector = None, alpha = 1e-8, delta_beta = 1e1, pad = 2, method = 'TIE', file_type = 'tif', image = None, **kwargs):
     """
     make sure that the unit of energy is in keV, the unit of detector_pixel_size is in meter, and the unit of distance_sample_detector is in meter
     """
     if idx is not None and type(idx) is not list:
         idx = [idx]
+    else:
+        idx = [0]
     
     if images is not None:
         image = [images[i] for i in idx]
@@ -199,49 +242,113 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
     else:
         image_path = None
 
-    phase = None if 'phase' not in kwargs.keys() else kwargs['phase']
-    attenuation = None if 'attenuation' not in kwargs.keys() else kwargs['attenuation']    
-        
+    if 'phase' in kwargs.keys():
+        phase = kwargs['phase']
+        attenuation = kwargs['attenuation']
+    elif 'phase_image' in kwargs.keys():
+        phase = kwargs['phase_image']
+        attenuation = kwargs['attenuation_image']
+    else:
+        phase = None
+        attenuation = None
+
+    if 'z' in kwargs.keys():
+        distance_sample_detector = kwargs['z']
+    if 'pv' in kwargs.keys():
+        detector_pixel_size = kwargs['pv']
+    if 'energy' in kwargs.keys():
+        energy_kev = kwargs['energy']
+
+    if 'mode' in kwargs.keys():
+        mode = kwargs['mode']
+    else:
+        mode = 'reflect'
+    if 'value' in kwargs.keys():
+        value = kwargs['value']
+    else:
+        value = 'mean'
+
+    
+
+    if type(distance_sample_detector) is list:
+        distance_sample_detector = [distance_sample_detector[i] for i in idx] if idx is not None else distance_sample_detector
+    if type(detector_pixel_size) is list:
+        detector_pixel_size = [detector_pixel_size[i] for i in idx] if idx is not None else detector_pixel_size
+        assert len(detector_pixel_size) == len(distance_sample_detector), "detector_pixel_size and distance_sample_detector must have the same length"
+    if type(energy_kev) is list:
+        energy_kev = [energy_kev[i] for i in idx] if idx is not None else energy_kev
+    if type(pad) is list:
+        pad = [pad[i] for i in idx] if idx is not None else pad
+    lam = wavelength_from_energy(energy_kev).magnitude
+    if 'fresnel_number' in kwargs.keys():
+        fresnel_number = kwargs['fresnel_number']
+    else:
+        fresnel_number = [fresnel_calculator(energy_kev, lam, detector_pixel_size, distance) for distance in distance_sample_detector] if type(distance_sample_detector) is list else fresnel_calculator(energy_kev, lam, detector_pixel_size, distance_sample_detector)
+    if 'fresnel_factor' in kwargs.keys():
+        fresnel_factor = kwargs['fresnel_factor']
+    else:
+        fresnel_factor = None
+
     if path is not None:
-        
         #if path is a folder
-        if type(path) is str and os.path.isdir(path):
-            images = list(io.imread_collection(path + '/*.' + file_type).files)
-            image_path = [images[i] for i in idx]
-            image = load_images_parallel(image_path)
-        #if path is a list of files
-        elif type(path) is list and not os.path.isfile(path[0]):
-            image_path = [path[i] for i in idx]
-            image = load_images_parallel(image_path)
-        elif type(path) is list and os.path.isdir(path[0]):
-            folders = path
-            images = []
-            for folder in folders:
-                images += list(io.imread_collection(folder + '/*.' + file_type).files)
-            image_path = [images[i] for i in idx]
-            image = load_images_parallel(image_path)
+        if type(path) is str:
+            if os.path.isdir(path):
+                images = list(io.imread_collection(path + '/*.' + file_type).files)
+                image_path = [images[i] for i in idx]
+                image = load_images_parallel(image_path)
+            elif os.path.isfile(path):
+                images = io.imread(path)
+                image_path = path
+                if len(images.shape) == 2:
+                    image = images
+                elif len(images.shape) == 3:
+                    image = images[idx,:,:]
+                else:
+                    image = images[idx,:,:,:]
+                image = [image]
+
+        elif type(path) is list:
+            if os.path.isfile(path[0]):
+                image_path = [path[i] for i in idx]
+                image = load_images_parallel(image_path)
+            if os.path.isdir(path[0]):
+                folders = path
+                images = []
+                for folder in folders:
+                    images += list(io.imread_collection(folder + '/*.' + file_type).files)
+                image_path = [images[i] for i in idx]
+                image = load_images_parallel(image_path)
+        
         elif type(path) is np.array:
             image_path = os.getcwd()
-            images = path
+            images = [path]
+            image = [path]
+
+        elif 'ImageCollection' in str(type(path)):
+            image_path = path.files
+            image_path = [image_path[i] for i in idx]
+            images = load_images_parallel(image_path)
             image = [images[i] for i in idx]
+        
         else:
-            image = [path[i] for i in idx]
+            if type(path) is not list:
+                images = [path]
+            image = [images[i] for i in idx]
             try:
                 image = load_images_parallel(image)
             except:
                 pass
-                
     else:
-        phase = None if 'phase' not in kwargs.keys() else kwargs['phase']
-        attenuation = None if 'attenuation' not in kwargs.keys() else kwargs['attenuation']
-        if phase is not None and attenuation is not None:
-            phase = np.zeros((attenuation.shape[0], attenuation.shape[1])) if phase is None and attenuation is not None else phase
-            attenuation = np.zeros((phase.shape[0], phase.shape[1])) if attenuation is None and phase is not None else attenuation
-            print("phase shape", phase.shape)
+        if image is None:
+            assert phase is not None and attenuation is not None, "phase and attenuation must be given"
+            attenuation = attenuation
+            from ganrec_dataloader import forward_propagate, tensor_to_np
             shape_x, shape_y = phase.shape
-            fresnel_factor = ffactor(shape_x*pad, shape_y*pad, energy_kev, distance_sample_detector, detector_pixel_size)
-            from ganrec_dataloader import forward_propagate
-            image = forward_propagate(shape_x, shape_y, pad, energy_kev, detector_pixel_size, distance_sample_detector, phase_image = phase, attenuation_image = attenuation, fresnel_factor = fresnel_factor)[0,0,:,:].numpy()
+            fresnel_factor = ffactors(shape_x*pad, shape_y*pad, energy_kev, distance_sample_detector, detector_pixel_size)
+            if type(distance_sample_detector) == list:
+                image = [tensor_to_np(forward_propagate(shape_x=shape_x,shape_y=shape_y, pad=pad, energy_kev=energy_kev, detector_pixel_size=detector_pixel_size, distance_sample_detector=distance, phase_image=phase, attenuation_image=attenuation, fresnel_factor=fresnel_factor[i], wavefield=None, distance=distance, mode=mode, value=value)) for i, distance in enumerate(distance_sample_detector)]
+            else:    
+                image = tensor_to_np(forward_propagate(shape_x=shape_x, shape_y=shape_y, pad=pad, energy_kev=energy_kev, detector_pixel_size=detector_pixel_size, distance_sample_detector=distance_sample_detector, phase_image=phase, attenuation_image=attenuation, fresnel_factor=fresnel_factor, wavefield=None, distance=distance_sample_detector, mode=mode, value=value))
     
     if image is not None: 
         if type(image) is list:
@@ -278,7 +385,20 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
                 else:
                     image = (image - mean_dark_image) / (mean_ref_image - mean_dark_image)
         
-        ff = ffactor(shape_x*pad, shape_y*pad, energy_kev, distance_sample_detector, detector_pixel_size)
+        if 'downsampling_factor' not in kwargs.keys() or kwargs['downsampling_factor'] == None:
+            kwargs['downsampling_factor'] = 1
+        else:
+            image = [resize(image[i], (image[i].shape[0]//kwargs['downsampling_factor'], image[i].shape[1]//kwargs['downsampling_factor']), anti_aliasing=True) for i in range(len(image))]
+            shape_x, shape_y = image[0].shape
+            detector_pixel_size = detector_pixel_size * kwargs['downsampling_factor']
+            fresnel_factor = ffactors(shape_x*pad, shape_y*pad, energy_kev, distance_sample_detector, detector_pixel_size)
+            Fx, Fy = grid_generator(shape_x, shape_y, upscale=pad, ps = detector_pixel_size)
+
+        if fresnel_factor is None:
+            fresnel_factor = ffactors(shape_x*pad, shape_y*pad, energy_kev, distance_sample_detector, detector_pixel_size)
+        
+
+        print(ND, image[0].shape)
         kwargs = {
             "path": path,
             "output_path" : os.getcwd(),
@@ -286,17 +406,18 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
             "column_name": 'path',
             "energy_J": energy_kev_to_joule(energy_kev),
             "energy_kev": energy_kev,
-            "lam": wavelength_from_energy(energy_kev),
+            "lam": lam,
             "detector_pixel_size": detector_pixel_size,
             "distance_sample_detector": distance_sample_detector,
-            "fresnel_number": fresnel_calculator(energy_kev = energy_kev, detector_pixel_size = detector_pixel_size, distance_sample_detector = distance_sample_detector),
+            "fresnel_number": fresnel_number,
             "wave_number": wave_number(energy_kev),
+            "downsampling_factor": kwargs['downsampling_factor'],
 
             "shape_x": shape_x,
             "px": shape_x,
             "shape_y": shape_y,
             "py": shape_y,
-            "pad_mode": 'symmetric',
+            "pad_mode": mode,
             'shape': [int(shape_x), int(shape_y)],
             'distance': [distance_sample_detector],
             'z': distance_sample_detector,
@@ -312,13 +433,13 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
             'fx': Fx, 'fy': Fy,
             'method': method, 
             'delta_beta': delta_beta,
-            "fresnel_factor":  ffactor(shape_x*pad, shape_y*pad, energy_kev, distance_sample_detector, detector_pixel_size),
+            "fresnel_factor":  fresnel_factor,
             "i_input": image[0],
             "image_path": image_path,
             "image": image,
             "all_images": images,
             "ND": ND,
-            "fresnel_factor": ff,
+            "fresnel_factor": fresnel_factor,
             "phase": phase,
             "attenuation": attenuation,
         } 
@@ -356,7 +477,6 @@ def get_all_info(path = None, images = None, idx = 1000, energy_kev = 18.0, dete
             image = [images[i] for i in idx]
             get_all_info(image=image, **kwargs)
 
-
 def load_image(url):
 
     img = io.imread(url)
@@ -371,6 +491,35 @@ def load_images_parallel(urls = []):
         results = executor.map(load_image, urls)
         images = list(results)
     return images
+
+def resize_images_parallel(images = [], shape = (512, 512)):
+    if images == []:
+        return None
+    """using concurrent.futures"""
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = executor.map(resize, images, [shape]*len(images))
+    return list(results)
+
+def fun_images_parallel(images, fun, attribute):
+    if images == []:
+        return None
+    
+    if type(images) is not list:
+        images = [images]
+    
+    if type(attribute) is not list:
+        attribute = [attribute]*len(images)
+
+    #change fun from string to function
+    if type(fun) is str:
+        fun = eval(fun)
+    
+    """using concurrent.futures"""
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = executor.map(fun, images, attribute)
+    return list(results)
 
 def load_dxchange(paths = []):
     """using dxchange"""
@@ -420,10 +569,7 @@ def fresnel_calculator(energy_kev = None, lam = None, detector_pixel_size = None
     assert distance_sample_detector is not None, "distance_sample_detector must be given"
     return detector_pixel_size**2/(lam*distance_sample_detector)
 
-def wavelength_from_energy(energy):
-    import quantities as pq
-    h = pq.Quantity(6.626 * 10**(-34), 'J*s')
-    c  = pq.Quantity(299792458, 'm/s')
+def eneryg_J(energy):
     if type(energy) == pq.quantity.Quantity:
         if energy.dimensionality == pq.Quantity(1, 'keV').dimensionality:
             energy = energy.rescale('J')
@@ -432,30 +578,8 @@ def wavelength_from_energy(energy):
         elif energy.dimensionality == pq.Quantity(1, 'eV').dimensionality:
             energy = energy.rescale('J')
         elif energy.dimensionality == pq.Quantity(1, 'm').dimensionality:
-            energy = energy.rescale('J')
-    else:
-        energy = pq.Quantity(energy, 'J')
-    return h*c/energy
-
-
-def wave_number(energy):
-    """ if the energy is not a quantity, it assumes that the energy is:
-              * in keV if it is a string or int, or 
-              * in joules if it is a float. 
-              The final wave number is in 1/m"""
-    import quantities as pq
-    h = pq.Quantity(6.626 * 10**(-34), 'J*s')
-    c  = pq.Quantity(299792458, 'm/s')
-    if type(energy) == pq.quantity.Quantity:
-        if energy.dimensionality == pq.Quantity(1, 'keV').dimensionality:
-            energy = energy.rescale('J')
-        elif energy.dimensionality == pq.Quantity(1, 'J').dimensionality:
-            energy = energy
-        elif energy.dimensionality == pq.Quantity(1, 'eV').dimensionality:
-            energy = energy.rescale('J')
-        elif energy.dimensionality == pq.Quantity(1, 'm').dimensionality:
-            wave_length = energy
-            energy = (h*c/wave_length).rescale('J')
+            wavelength = energy
+            energy = energy_from_wavelength(wavelength)
     else:
         if type(energy) == str:
             energy = float(energy)
@@ -467,51 +591,49 @@ def wave_number(energy):
             energy = energy
             energy = pq.Quantity(energy, 'J')
         else:
-            #joules
             energy = pq.Quantity(energy, 'keV').rescale('J')
-
-    #calculate the wave number
-    wave_number = 2*np.pi*(energy/h/c).rescale('1/m')
-    wave_number = wave_number.magnitude
-    return wave_number
-
-#energy from wave number
-def energy_from_wave_number(wave_number):
-    import quantities as pq
-    h = pq.Quantity(6.626 * 10**(-34), 'J*s')
-    c  = pq.Quantity(299792458, 'm/s')
-    if type(wave_number) == pq.quantity.Quantity:
-        if wave_number.dimensionality == pq.Quantity(1, '1/m').dimensionality:
-            wave_number = wave_number
-        elif wave_number.dimensionality == pq.Quantity(1, '1/cm').dimensionality:
-            wave_number = wave_number.rescale('1/m')
-        elif wave_number.dimensionality == pq.Quantity(1, '1/nm').dimensionality:
-            wave_number = wave_number.rescale('1/m')
-        elif wave_number.dimensionality == pq.Quantity(1, '1/A').dimensionality:
-            wave_number = wave_number.rescale('1/m')
-    else:
-        if type(wave_number) == str:
-            wave_number = float(wave_number)
-            wave_number = pq.Quantity(wave_number, '1/m')
-        elif type(wave_number) == int:
-            wave_number = float(wave_number)
-            wave_number = pq.Quantity(wave_number, '1/m')
-        elif type(wave_number) == float:
-            wave_number = wave_number
-            wave_number = pq.Quantity(wave_number, '1/m')
-        else:
-            #joules
-            wave_number = pq.Quantity(wave_number, '1/m')
-
-    #calculate the wave number
-    energy = (wave_number*h*c/2/np.pi).rescale('J')
-    energy = energy.magnitude
     return energy
+
+def wavelength_m(lam):
+    if type(lam) == pq.quantity.Quantity:
+        if lam.dimensionality == pq.Quantity(1, 'm').dimensionality:
+            lam = lam.rescale('m')
+        elif lam.dimensionality == pq.Quantity(1, 'nm').dimensionality:
+            lam = lam.rescale('m')
+        elif lam.dimensionality == pq.Quantity(1, 'A').dimensionality:
+            lam = lam.rescale('m')
+        elif lam.dimensionality == pq.Quantity(1, 'keV').dimensionality:
+            lam = lam.rescale('m')
+    else:
+        lam = pq.Quantity(lam, 'm')
+    return lam
+
+def wavelength_from_energy(energy):
+    h = pq.Quantity(6.62607015* 10**-34, 'J*s')
+    c  = pq.Quantity(299792458, 'm/s')
+    energy = eneryg_J(energy)
+    return h*c/energy
+
+def energy_from_wavelength(lam):
+    h = pq.Quantity(6.62607015* 10**-34, 'J*s')
+    c  = pq.Quantity(299792458, 'm/s')
+    lam = wavelength_m(lam)
+    energy = h*c/lam
+    return energy.rescale('keV')
+
+def wave_number(energy):
+    lam = wavelength_from_energy(energy)
+    wavenumber = 2*np.pi/lam
+    return wavenumber
+
+def energy_from_wave_number(wave_number):
+    lam = 2*np.pi/wave_number
+    return energy_from_wavelength(lam)
 
 def shorten(string):
     if 'e' in string:
-        left = string.split('e')[0][:5]
-        right = string.split('e')[1][:3]
+        left = string.split('e')[0][:7]
+        right = string.split('e')[1][:7]
         return left + 'e' + right
     else:
         if '.' in string:
@@ -519,10 +641,10 @@ def shorten(string):
             for i in range(len(string.split('.')[1])):
                 if string[i] == '0':
                     count += 1
-            return string[:count+2]
+            return string[:count+5]
         else:
-            return string[:5]
-
+            return string[:7]
+        
 def give_title(image, title = '', idx = '', min_max = True):    
     if min_max:
         min_val_orig = np.min(image)
@@ -535,14 +657,14 @@ def give_title(image, title = '', idx = '', min_max = True):
     title = 'im='+ str(idx+1) if title == '' else title
     return title + ' (' + txt_min_val + ', ' + txt_max_val + ')'
 
-def give_titles(images, titles = []):
+def give_titles(images, titles = [], min_max = True):
     titles = [titles] if type(titles) is not list else titles
     if len(titles) <= len(images):
-        titles = [give_title(images[i], title = titles[i], idx=i) for i in range(len(titles))]
+        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(titles))]
         n_for_rest = np.arange(len(titles), len(images))
-        titles.extend([give_title(images[i], idx=i) for i in n_for_rest])
+        titles.extend([give_title(images[i], idx=i, min_max = min_max) for i in n_for_rest])
     else:
-        titles = [give_title(images[i], title = titles[i], idx=i) for i in range(len(images))]
+        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(images))]
     return titles
 
 def get_row_col(images, show_all = False):
@@ -566,93 +688,181 @@ def get_row_col(images, show_all = False):
     print('rows: ', rows, 'cols: ', cols)
     return rows, cols
 
-def convert_images(images, idx = None):
-    if idx is None:
-        if type(images) == np.ndarray:
-            return [images]
-        elif type(images) == list:
-            if type(images[0]) == np.ndarray:
-                return images
-            
-            elif type(images[0]) == str:
-                return io.imread_collection(images)
-            elif np.iscomplexobj(images[0]):
-                return [np.abs(image)**2 for image in images]
-            else:
-                return images
-        elif type(images) == str:
-            try:
-                return io.imread_collection(images)
-            except:
-                return [io.imread_collection(images+'/*.tif')]
-        else:
-            import torch
-            from ganrec_dataloader import tensor_to_np
-            if type(images) == torch.Tensor:
-                return [tensor_to_np(images)]
-            elif type(images) == list:
-                if type(images[0]) == np.ndarray:
-                    return images
-                elif type(images[0]) == torch.Tensor:
-                    np_im = [tensor_to_np(image) for image in images]
-                    if np.iscomplexobj(np_im[0]):
-                        return [np.abs(image)**2 for image in np_im]
-                    elif len(np_im[0].shape) == 4:
-                        np_im = [images[0,0,:,:] for image in images]
-                    return np_im
-            else:
-                assert False, "images are not of type np.ndarray, torch.Tensor, list, str or io.imread_collection"
-    else:
-        try:
-            return convert_images(images[idx])
-        except:
-            return [convert_images(image) for image in images]
-
-def chose_fig(images, idx = None, rows = None, cols = None, show_all = False):
+def chose_fig(images, idx = None, rows = None, cols = None, show_all = False, add_length = None):
     (rows, cols) = get_row_col(images) if rows is None or cols is None else (rows, cols)
     shape = images[0].shape
-    fig_size = (shape[1]*cols/100+1, shape[0]*rows/100)
-    fig, ax = plt.subplots(rows, cols, figsize=fig_size)
+    if shape[0] > 260:
+        fig_size = (shape[1]*cols/100+1, shape[0]*rows/100)
+    elif shape[0] > 100 and shape[0] <= 260:
+        fig_size = (shape[1]*cols/50+1, shape[0]*rows/50)
+    else:
+        fig_size = (shape[1]*cols/25+1, shape[0]*rows/25)
+    if add_length is not None:
+        fig_size = (fig_size[0]+add_length, fig_size[1])
+    fig, ax = plt.subplots(rows, cols, figsize=fig_size, squeeze=False)
+    ax.reshape(rows, cols)
     if rows == 1 and cols == 1:
-        return fig, ax, rows, cols
+        return fig, ax, rows, cols, fig_size
     elif rows == 1:
         ax = ax.reshape(1, cols)
-        return fig, ax, rows, cols
+        return fig, ax, rows, cols, fig_size
     elif cols == 1:
         ax = ax.reshape(rows, 1)
-        return fig, ax, rows, cols
+        return fig, ax, rows, cols, fig_size
     else:
-        return fig, ax, rows, cols
+        return fig, ax, rows, cols, fig_size
+    
+def get_setup_info(dict = {}):
+    #rearrange them in a descending order based on length
+    dict = {k: v for k, v in sorted(dict.items(), key=lambda item: len(item[0]) + len(str(item[1])), reverse=True)}
+    len_line = 0
+    for key, value in dict.items():
+        if type(value) == str or  type(value) == int or type(value) == float or type(value) == bool: 
+            if len(key) > len_line:
+                len_line = len(key)
+        elif type(value) == np.ndarray:
+            if len(value.shape) == 0:
+                if len(key) > len_line:
+                    len_line = len(key)
+        else: 
+            try:
+                from ganrec_dataloader import tensor_to_np
+                if type(tensor_to_np(value)) == np.ndarray and len(tensor_to_np(value).shape) == 0:
+                    if len(key) > len_line:
+                        len_line = len(key)
+            except:
+                pass
+    len_line += 10
+    line = '_'*len_line 
+    information = line + '\n'
+    for key, value in dict.items():
+        if type(value) == str or type(value) == int or type(value) == float or type(value) == bool:
+            information += '| ' +key +': '+ str(value) +' \n'
+        elif type(value) == np.ndarray and len(value.shape) == 0:
+            information += '| ' +key +': '+ str(value) +' \n'
+        else:
+            try:
+                from ganrec_dataloader import tensor_to_np
+                if type(tensor_to_np(value)) == np.ndarray and len(tensor_to_np(value).shape) == 0:
+                    information += '| ' +key +': '+ str(tensor_to_np(value)) +' \n'
+            except:
+                pass
+    information += line + ' \n'
+    print(information)
+    return information, len_line
 
-def visualize(images, idx = None, rows = None, cols = None, show_or_plot = 'show', cmap = 'Blues_r', title = '', axis = 'on', plot_axis = 'half'):
+def get_file_nem(dict):
+    name = ''
+    important_keys = ['experiment_name', 'abs_ratio', 'iter_num', 'downsampling_factor', 'l1_ratio', 'contrast_ratio', 'normalized_ratio', 'brightness_ratio', 'contrast_normalize_ratio', 'brightness_normalize_ratio', 'l2_ratio', 'fourier_ratio']
+    for key in important_keys:
+        if key in dict.keys():
+            name += key + '_' + str(dict[key]) + '__'
+    return name
+
+            
+def create_table_info(dict={}):
+    import pandas as pd
+    df = pd.DataFrame()
+    for key, value in dict.items():
+        if type(value) != np.ndarray:
+            df[key] = [value]
+        elif type(value) == np.ndarray and len(value.shape) == 0:
+            df[key] = [value]
+    df = df.T
+    #create a plot with the information
+    fig, ax = plt.subplots(figsize=(20, 10))
+    #make the rows and columns look like a table
+    ax.axis('tight')
+    ax.axis('off')
+    #create the table
+    table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', rowLabels=df.index, cellLoc='center')
+    #change the font size
+    table.set_fontsize(14)
+    #change the cell height
+    table.scale(1, 2)
+    
+    return df,ax, table
+
+def give_titles(images, titles = [], min_max = True):
+    titles = [titles] if type(titles) is not list else titles
+    if len(titles) <= len(images):
+        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(titles))]
+        n_for_rest = np.arange(len(titles), len(images))
+        titles.extend([give_title(images[i], idx=i, min_max = min_max) for i in n_for_rest])
+    else:
+        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(images))]
+    return titles
+                
+            
+def val_from_images(image, type_of_image = 'nd.array'):
+    if 'ndarray' in str(type_of_image):
+        if len(image.shape) == 2:
+            val = image
+        elif len(image.shape) == 3:
+            val = [image[j,:,:] for j in range(len(image))]
+        else:
+            val = [image[j,0,:,:] for j in range(len(image))]
+    elif 'Tensor' in str(type_of_image):
+        from ganrec_dataloader import tensor_to_np
+        image = tensor_to_np(image)
+        if type(image) is not list:
+            if len(image.shape) == 2:
+                val = image
+            elif len(image.shape) == 3:
+                val = [image[j,:,:] for j in range(len(image))]
+            elif len(image.shape) == 4:
+                val = [image[j,0,:,:] for j in range(len(image))]
+            elif len(image.shape) == 1:
+                val = image
+        else:
+            val = image
+    elif type_of_image == 'str':
+        val = io.imread_collection(image)
+    elif 'collection' in str(type_of_image):
+        val = image
+    elif 'list' in str(type_of_image):
+        val = [val_from_images(image, type_of_image = type(image)) for image in image]
+    else:
+        print(type_of_image)
+        assert False, "type_of_image is not nd.array, list or torch.Tensor"
+    return val
+    
+def convert_images(images, idx = None):
+    if idx is not None:
+        images = [images[i] for i in idx]
+    if type(images) is list:
+        vals = [val_from_images(image, type_of_image = type(image)) for image in images]
+  
+        for i, val in enumerate(vals):
+            if type(val) is list:
+                [vals.append(val[j]) for j in range(len(val))]
+                vals.pop(i)
+        images = vals
+    else:
+        images = val_from_images(images, type_of_image = type(images))
+    for i, val in enumerate(images):
+        if type(val) is list:
+            [images.append(val[j]) for j in range(len(val))]
+            images.pop(i)
+    return images
+
+
+def visualize(images, idx = None, rows = None, cols = None, show_or_plot = 'show', cmap = 'coolwarm', title = '', axis = 'on', plot_axis = 'half', min_max = True, dict = None, save_path=None):
     """
     Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r',
     """
     #'Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r',
-    
     images = convert_images(images, idx)
-    titles = give_titles(images, title)
+    titles = give_titles(images, title, min_max)
     shape = images[0].shape
-    fig, ax, rows, cols = chose_fig(images, idx, rows, cols)
-    if rows == 1 and cols == 1:
-        ax.imshow(images[0], cmap = cmap)
-        if show_or_plot == 'plot':
-            if plot_axis == 'half':
-                ax.plot(images[0][shape[0]//2, :])
-            else:
-                assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
-                ax.plot(images[0][plot_axis, :])
-        elif show_or_plot == 'both':
-            ax.twinx().plot(images[0][shape[0]//2, :])
-        ax.axis(axis)
-        ax.set_title(titles[0], fontsize = 12)
-        fig.colorbar(ax.imshow(images[0]), ax=ax)
-        plt.show()
-        return fig
     
-    if show_or_plot == 'show':    
-        [ax[i, j].imshow(images[i*cols + j], cmap = cmap) for i in range(rows) for j in range(cols)]
-    elif show_or_plot == 'plot':
+    if dict is not None:
+        description_title, add_length = get_setup_info(dict)
+    else:
+        add_length = None
+    fig, ax, rows, cols, fig_size= chose_fig(images, idx, rows, cols, add_length)
+   
+    if show_or_plot == 'plot':
         if plot_axis == 'half':
             [ax[i, j].plot(images[i*cols + j][shape[0]//2, :]) for i in range(rows) for j in range(cols)]
         else:
@@ -665,21 +875,29 @@ def visualize(images, idx = None, rows = None, cols = None, show_or_plot = 'show
         else:
             assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
             [ax[i, j].twinx().plot(images[i*cols + j][plot_axis, :]) for i in range(rows) for j in range(cols)]
-    else:
-        assert False, "show_or_plot is not 'show', 'plot' or 'both'"
+    
     [ax[i, j].axis(axis) for i in range(rows) for j in range(cols)]
     [ax[i, j].set_title(titles[i*cols + j], fontsize = 12) for i in range(rows) for j in range(cols)]
     plt.tight_layout()
-    [fig.colorbar(ax[i, j].imshow(images[i*cols + j]), ax=ax[i, j]) for i in range(rows) for j in range(cols)]
-    fig.patch.set_facecolor('xkcd:purple')
+    if show_or_plot != 'plot':
+        [fig.colorbar(ax[i, j].imshow(images[i*cols + j], cmap = cmap), ax=ax[i, j]) for i in range(rows) for j in range(cols)]
+    fig.patch.set_facecolor('xkcd:light grey')
+    
+    if dict is not None:
+        fig.subplots_adjust(left=add_length/150)
+        fig.suptitle(description_title, fontsize=10, y=0.95, x=0.05, ha='left', va='center', wrap=True, color='blue')
     plt.show()
+    if save_path is not None:
+        plt.savefig(save_path)
     return fig
 
-def sns_visualize(images, idx = None, rows = None, cols = None, show_or_plot = 'show', cmap = 'BuGn', title = '', axis = 'off', plot_axis = 'half'):
+
+def sns_visualize(images, idx = None, rows = None, cols = None, show_or_plot = 'show', cmap = 'coolwarm', title = '', axis = 'off', plot_axis = 'half'):
     """
     Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r',
     """
-
+    
+    import seaborn as sns
     images = convert_images(images, idx)
     titles = give_titles(images, title)
     shape = images[0].shape
@@ -740,4 +958,57 @@ def visualize_interact(pure = []):
     from IPython.display import display
     interact(visualize, pure = widgets.fixed(pure), show_or_plot = widgets.Dropdown(options=['show', 'plot'], value='show', description='Show or plot:'), rows = widgets.IntSlider(min=1, max=10, step=1, value=1, description='Rows:'), cols = widgets.IntSlider(min=1, max=10, step=1, value=3, description='Columns:'))
      
- 
+def plot_pandas(df, column_range = None, x_column = 'abs_ratio', titles = None):
+    """
+    this function plots the metadata dataframe
+    """
+    if column_range is None:
+        column_range = df.columns[2:-1]
+    elif column_range == 'all':
+        column_range = df.columns
+    elif type(column_range) is str:
+        column_range = [column_range]
+    elif type(column_range) is int:
+        column_range = df.columns[column_range:-1]
+    fig = plt.figure(figsize=(20,20))
+    min_vals = [df[column].min() for column in column_range], [df[column].idxmin() for column in column_range]
+    max_vals = [df[column].max() for column in column_range], [df[column].idxmax() for column in column_range]
+    if titles is None:
+        # titles = [column + '\nmin = ' + str(min_per_column[i])+' at ' + str(df[column].idxmin()) +'\n max = ' + str(df[column].max())+' at ' + str(df[column].idxmax()) for i, column in enumerate(column_range)]
+        titles = [column + '\nmin = ' + str(min_vals[0][i])+' at ' + str(min_vals[1][i]) +'\n max = ' + str(max_vals[0][i])+' at ' + str(max_vals[1][i]) for i, column in enumerate(column_range)]
+    for i, column in enumerate(column_range):
+        ax = fig.add_subplot(3, 3, i+1)
+        ax.plot(df[x_column], df[column])
+        ax.set_xlabel(x_column)
+        ax.set_ylabel(column)
+        ax.set_title(titles[i])
+
+    #return the minimum of each column and the corresponding value of x_column and the index in 0, .. format
+    return min_vals, max_vals
+
+    # #return the minimum of each column and the corresponding value of x_column
+    # return [df[column].min() for column in column_range], [df[column].idxmin() for column in column_range]
+
+def time_to_string(time):
+    if time > 60:
+        if time > 3600:
+            if time > 3600*24:
+                return str(int(time//(3600*24))) + ' days ' + str(int((time%(3600*24))//3600)) + ' hours ' + str(int((time%3600)//60)) + ' minutes ' + str(int(time%60)) + ' seconds'
+            else:
+                return str(int(time//3600)) + ' hours ' + str(int((time%3600)//60)) + ' minutes ' + str(int(time%60)) + ' seconds'
+        else:
+            return str(int(time//60)) + ' minutes ' + str(int(time%60)) + ' seconds'
+    else:
+        return str(int(time%60)) + ' seconds'
+
+def get_list_of_possibilities(value, gap = None, number_of_elements = None):
+    if gap is None:
+        gap = value * 0.1
+    if number_of_elements is None:
+        number_of_elements = 6
+    values = [value - gap*(i+1) for i in range(number_of_elements//2)]
+    values2 = [value + gap*(i+1) for i in range(number_of_elements//2)]
+    values.extend([value])
+    values.extend(values2)
+    values.sort()
+    return values
