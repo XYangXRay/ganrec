@@ -545,6 +545,8 @@ class unet(nn.Module):
         print("9 ", x.shape)
         return x
     
+
+
 class make_ganrec_model(nn.Module):
     def __init__(self, shape_x, shape_y, conv_num, conv_size, dropout, output_num, fresnel_factor, transformed_images=None, device=None, **kwargs):
         super(make_ganrec_model, self).__init__()
@@ -567,7 +569,10 @@ class make_ganrec_model(nn.Module):
         self.units = kwargs['units'] if 'units' in kwargs.keys() else 128
         self.fc_size = shape_x * shape_y
         self.task = kwargs['task'] if 'task' in kwargs.keys() else 'phase_retrieval'
-
+        if 'ground_truth' in kwargs.keys() and kwargs['ground_truth'] is not None:
+            self.ground_truth = to_device(torch_reshape(kwargs['ground_truth']), self.device)
+        else:
+            self.ground_truth = None
         random.seed(self.seed)
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
@@ -709,7 +714,7 @@ class make_ganrec_model(nn.Module):
         last_props = []
 
         if type(ratio) is list:
-            df = pd.DataFrame(columns=['iter_num', 'gen_loss', 'dis_loss', 'main_diff', 'setup_info'])
+            df = pd.DataFrame(columns=['iter_num', 'gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list', 'setup_info'])
             df.index.name = 'ratios'
             
             for i, r in enumerate(ratio):
@@ -725,27 +730,36 @@ class make_ganrec_model(nn.Module):
                     last_atts.append(model.attenuation_list[-1])
                     last_props.append(model.propagated_intensity_list[-1])
 
-                if show_images:
-                    if self.task == 'learn_gaussian':
-                        visualize([last_unblurred_images[-1], last_props[-1]], title = ['unblurred', 'propagated_intensity'])
-                    else:
-                        visualize([last_props[-1], last_phases[-1], last_atts[-1]], title = ['propagated_intensity', 'phase', 'attenuation'])
-                    
                 print('gen_loss: ', model.gen_loss_list[-1], 'dis_loss: ', model.dis_loss_list[-1], 'main_diff: ', model.main_diff_list[-1])
                 df.loc[i, 'iter_num'] = len(model.gen_loss_list)
                 df.loc[i, 'gen_loss'] = model.gen_loss_list[-1]
                 df.loc[i, 'dis_loss'] = model.dis_loss_list[-1]
                 df.loc[i, 'main_diff'] = model.main_diff_list[-1]
+                df.loc[i, 'ssim_list'] = model.ssim_list[-1]
+                df.loc[i, 'psnr_list'] = model.psnr_list[-1]
+                df.loc[i, 'mssim_list'] = model.mssim_list[-1]
                 df.loc[i, 'setup_info'] = get_file_nem(model.__dict__)
-            column_range = ['main_diff', 'gen_loss', 'dis_loss']
+            #replace nan values with 0
+            df = df.fillna(0)
+            column_range = ['main_diff', 'gen_loss', 'dis_loss', 'ssim_list', 'psnr_list', 'mssim_list']
             #list_element.index(element)
             min_vals = [df[column].min() for column in column_range], [df[column].idxmin() for column in column_range]
             max_vals = [df[column].max() for column in column_range], [df[column].idxmax() for column in column_range]
             
-            # indices_in_values = [str.index(min_vals[1][i]) for i in range(len(min_vals[1]))] 
             if plot_pd:         
-                plot_pandas(df, column_range=column_range, titles=column_range)
-            return df, last_props, last_phases, last_atts, min_vals, max_vals
+                plot_pandas(df, column_range=column_range)
+            if show_images:
+                if self.task == 'learn_gaussian':
+                    visualize(last_unblurred_images, title = ['unblurred_' + str(i) for i in range(len(last_unblurred_images))], rows = int(np.sqrt(len(last_unblurred_images))), cols = int(np.sqrt(len(last_unblurred_images))))
+                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))], rows = int(np.sqrt(len(last_unblurred_images))), cols = int(np.sqrt(len(last_unblurred_images))) )
+                else:
+                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))])
+                    visualize(last_phases, title = ['phase_' + str(i) for i in range(len(last_phases))])
+
+            if self.task == 'learn_gaussian':
+                return df, last_unblurred_images, last_props, min_vals, max_vals
+            else:
+                return df, last_props, last_phases, last_atts, min_vals, max_vals
         
         df = pd.DataFrame(columns=[condition, 'iter_num', 'gen_loss', 'dis_loss', 'main_diff',  'setup_info'])
         df.index.name = condition
@@ -810,7 +824,7 @@ class make_ganrec_model(nn.Module):
             if 'amp' not in self.__dict__.keys():
                 self.amp = False
 
-            self.generator_optimizer = optim.Adam(self.generator_model.parameters(),lr=self.g_learning_rate, weight_decay=self.weight_decay)
+            self.generator_optimizer = optim.RAdam(self.generator_model.parameters(),lr=self.g_learning_rate, weight_decay=self.weight_decay)
             self.discriminator_optimizer = optim.Adam(self.discriminator_model.parameters(), lr=self.d_learning_rate, weight_decay=self.weight_decay, amsgrad=True, maximize=True)
             
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.generator_optimizer, 'min', patience=5)  # goal: maximize Dice score
@@ -851,7 +865,9 @@ class make_ganrec_model(nn.Module):
     def gaussian_conv(self, x = None):
         if x is None:
             x = self.transform(self.pred)
-        self.blurred = transform(to_device(self.gaussian_filter(x), self.device), self.transform_type, self.transform_factor)
+        else:
+            x = self.transform(x)
+        self.blurred = to_device(self.transform(self.gaussian_filter(x)), self.device)
         self.difference = self.blurred - self.transformed_images
         if self.l1_ratio != 0:
             self.main_diff = torch.mean(torch.abs(self.difference))
@@ -937,11 +953,15 @@ class make_ganrec_model(nn.Module):
 
         self.make_model()
         self.gen_loss_list, self.dis_loss_list, self.propagated_intensity_list, self.phase_list, self.attenuation_list, self.main_diff_list, self.epoch_time, self.ssim_list, self.psnr_list, self.mssim_list = [], [], [], [], [], [], [], [], [], []
+        self.ground_main_diff_list, self.ground_ssim_list, self.ground_psnr_list, self.ground_mssim_list = [], [], [], []
         if self.task == 'learn_gaussian':
             self.unblurred_list = []
 
         self.requires_grad_(True)
         self.start_time = time.time()  
+
+        stop_training = False
+
         for i in range(iter_num):
             self.epoch = i
             if self.task == 'learn_gaussian':
@@ -956,27 +976,50 @@ class make_ganrec_model(nn.Module):
                 self.scheduler.step(self.g_loss)
 
             self.ssim_list.append(tensor_to_np(self.ssim(self.transformed_images, self.propagated_intensity)))
-            self.ssim_list.append(tensor_to_np(self.ssim(self.transformed_images, self.propagated_intensity)))
             self.psnr_list.append(tensor_to_np(self.psnr(self.transformed_images, self.propagated_intensity)))
-            self.mssim_list.append(tensor_to_np(self.mssim(self.transformed_images, self.propagated_intensity)))
-            # self.fid.update(self.propagated_intensity, real=False)
-            # self.fid_list.append(tensor_to_np(self.fid.calculate()))
+            self.mssim_list.append(tensor_to_np(self.mssim(self.transformed_images, self.propagated_intensity))) 
+
+            if self.ground_truth is not None:
+                if self.task == 'learn_gaussian':
+                    self.ground_truth_difference = tensor_to_np(self.transform(self.unblurred) - self.transform(self.ground_truth))
+                    self.ground_ssim_list.append(tensor_to_np(self.ssim(self.ground_truth, self.unblurred)))
+                    self.ground_psnr_list.append(tensor_to_np(self.psnr(self.ground_truth, self.unblurred)))
+                    self.ground_mssim_list.append(tensor_to_np(self.mssim(self.ground_truth, self.unblurred)))
+                    self.ground_main_diff_list.append(np.mean(np.abs(self.ground_truth_difference)))
+                else:
+                    self.ground_truth_difference = tensor_to_np(self.phase - self.ground_truth)
+                    self.ground_ssim_list.append(tensor_to_np(self.ssim(self.ground_truth, self.phase)))
+                    self.ground_psnr_list.append(tensor_to_np(self.psnr(self.ground_truth, self.phase)))
+                    self.ground_mssim_list.append(tensor_to_np(self.mssim(self.ground_truth, self.phase)))
+                    self.ground_main_diff_list.append(np.mean(np.abs(self.ground_truth_difference)))
 
             self.gen_loss_list.append(tensor_to_np(self.gen_loss))
             self.dis_loss_list.append(tensor_to_np(self.dis_loss))
             self.main_diff_list.append(tensor_to_np(self.main_diff))
             self.propagated_intensity_list.append(tensor_to_np(self.propagated_intensity))
+
+            
+            #no better imporvement for 10 epochs
+            if i > 50:
+                if self.task == 'learn_gaussian':
+                    #if the std of the last 10 propagated_intensity is less than 1e-3, stop the training
+                    if np.std(self.main_diff_list[-50:]) < 1e-6:
+                        print('std of propagated_intensity is less than 1e-3, stop the training')
+                        stop_training = True
+
             self.epoch_time.append(time.time() - self.start_time)
 
-            if i ==0 or (i+1) % (self.iter_num) == 0:
+            if i ==0 or (i+1) % (self.iter_num//3) == 0 or stop_training is True:
                 print('epoch', i, 'gen_loss: ', self.g_loss, 'dis_loss: ', self.d_loss, 'main_diff: ', self.main_diff, "t_epoch: ", self.epoch_time[-1], "remaining time: ", time_to_string(self.epoch_time[0] * iter_num - self.epoch_time[0] * i), 'ssim: ', self.ssim_list[-1], 'psnr: ', self.psnr_list[-1])
             
+            if stop_training is True:
+                break
         if save_model is True and save_model_path is not None:
             torch.save(self.generator_model.state_dict(), save_model_path)
         self.total_time = time.time() - self.start_time
 
         if self.task == 'learn_gaussian':
-            return self.gen_loss_list, self.dis_loss_list, self.propagated_intensity_list, self.unblurred_list
+            return self.gen_loss_list, self.dis_loss_list, self.propagated_intensity_list, self.unblurred_list, None
         else:
             return self.gen_loss_list, self.dis_loss_list, self.propagated_intensity_list, self.phase_list, self.attenuation_list
         
@@ -986,19 +1029,49 @@ class make_ganrec_model(nn.Module):
         else:
             learned_image = self.phase_list[-1]
 
-        images = [tensor_to_np(self.transformed_images),self.propagated_intensity_list[0], self.propagated_intensity_list[-1], learned_image, tensor_to_np(self.difference)]
-        image_titles = ['input_image', 'generated: 0 iter', 'generated: '+str(self.iter_num), 'desired learned image', 'diff b/n input and generated']
-        plots = [self.gen_loss_list, self.dis_loss_list, self.main_diff_list, self.ssim_list, self.psnr_list, self.mssim_list]
-        plot_titles = ['gen_loss', 'dis_loss', 'main_diff', 'ssim', 'psnr', 'mssim']
-        
+        if self.ground_truth is not None:
+            df = pd.DataFrame(columns=['gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list', 'setup_info', 'ground_ssim_list', 'ground_psnr_list', 'ground_mssim_list', 'ground_main_diff_list'])
+
+        else:
+            df = pd.DataFrame(columns=['gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list', 'setup_info'])
+        df.index.name = 'iter_num'
+        df['gen_loss'] = self.gen_loss_list
+        df['dis_loss'] = self.dis_loss_list
+        df['main_diff'] = self.main_diff_list   
+        df['ssim_list'] = self.ssim_list
+        df['psnr_list'] = self.psnr_list
+        df['mssim_list'] = self.mssim_list
+        df['setup_info'] = get_file_nem(self.__dict__)
+        if self.ground_truth is not None:
+            df['ground_ssim_list'] = self.ground_ssim_list
+            df['ground_psnr_list'] = self.ground_psnr_list
+            df['ground_mssim_list'] = self.ground_mssim_list
+            df['ground_main_diff_list'] = self.ground_main_diff_list
+
+            
+
+
+
+        if self.ground_truth is not None:
+            ground_images = [tensor_to_np(self.ground_truth), tensor_to_np(self.ground_truth) - learned_image]
+            ground_image_titles = ['ground_truth', 'diff b/n \n GT and learned']
+        else:
+            ground_images = []
+            ground_image_titles = []
+        images = [tensor_to_np(self.transformed_images), self.propagated_intensity_list[-1], tensor_to_np(self.difference), learned_image]
+        image_titles = ['given image to model', 'reconstructed: iter'+str(self.iter_num), 'diff b/n \n input and generated', 'backpropagated/learned image']
+
+        [images.append(ground_images[i]) for i in range(len(ground_images)) if ground_images != []]
+        [image_titles.append(ground_image_titles[i]) for i in range(len(ground_image_titles)) if ground_image_titles != []]
+
         fig_1 = visualize(images, show_or_plot = show_or_plot, title = image_titles)
-        fig_2 = plot_image(plots, title = plot_titles)
-        #combine the two figures
-        fig = plt.figure(figsize=(20,10))
-        fig.add_subfigure(fig_1.figimage)
-        fig.add_subfigure(fig_2.figimage)
+       
+        if self.ground_truth is not None:
+            plot_pandas(df, column_range=['gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list', 'ground_ssim_list', 'ground_psnr_list', 'ground_mssim_list', 'ground_main_diff_list'])
+        else:
+            plot_pandas(df, column_range=['gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list'])
         
-        return fig
+        return fig_1
     
     def live_plot(self, iter_num = None, rate = None):
 
@@ -1072,7 +1145,7 @@ class make_ganrec_model(nn.Module):
         io.imsave(path + 'abs/attenuation_' + name + '.npy', self.attenuation_list[-1])
 
         return path + name
-
+    
 def shorten(string):
     if 'e' in string:
         left = string.split('e')[0][:7]
@@ -1254,6 +1327,8 @@ def val_from_images(image, type_of_image = 'nd.array'):
                 val = [image[j,0,:,:] for j in range(len(image))]
             elif len(image.shape) == 1:
                 val = image
+        else:
+            val = image
     elif 'jax' in str(type_of_image):
         #jax to numpy
         image = np.array(image)
@@ -1276,7 +1351,7 @@ def val_from_images(image, type_of_image = 'nd.array'):
     else:
         assert False, "type_of_image is not nd.array, list or torch.Tensor"
     return val
-    
+      
 def convert_images(images, idx = None):
     if idx is not None:
         images = [images[i] for i in idx]
@@ -1419,7 +1494,7 @@ def plot_pandas(df, column_range = None, x_column = None, titles = None):
         column_range = [column_range]
     elif type(column_range) is int:
         column_range = df.columns[column_range:-1]
-    fig = plt.figure(figsize=(20,20))
+    fig = plt.figure(figsize=(25,25))
     min_vals = [df[column].min() for column in column_range], [df[column].idxmin() for column in column_range]
     max_vals = [df[column].max() for column in column_range], [df[column].idxmax() for column in column_range]
     if titles is None:
@@ -1439,3 +1514,25 @@ def plot_pandas(df, column_range = None, x_column = None, titles = None):
             ax.set_title(titles[i])
     #return the minimum of each column and the corresponding value of x_column and the index in 0, .. format
     return min_vals, max_vals
+
+def plot_image(plots, idx = None, title = '', fig = None, ax = None):
+    if type(plots) is not list:
+            plots = [plots]
+    if idx is not None:
+        plots = [plots[i] for i in idx]
+    title = give_titles(plots, title)
+    if fig is None or ax is None:
+        fig = plt.figure(figsize=(20,10))
+        ax = fig.add_subplot(111)
+        [ax.plot(plots[i]) for i in range(len(plots))]
+        ax.set_title(title)
+        ax.legend(title)
+        plt.show()
+        return fig, ax
+    else:
+        [ax.plot(plots[i]) for i in range(len(plots))]
+        ax.set_title(title)
+        ax.legend(title)
+        plt.show()
+        return fig, ax
+
