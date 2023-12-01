@@ -1,20 +1,24 @@
 from setup import *
-# from visualize import visualize
 from utils import load_images_parallel, fun_images_parallel
-from ganrec_dataloader import *
+# from ganrec_dataloader import *
 from models import *
+from gaussian_blur import *
+from visualize import visualize
+from unet import UNet
+import random
+import time
+
+
 from scipy.ndimage import gaussian_filter, median_filter
 from skimage.data import shepp_logan_phantom, camera
 from torchmetrics.image.psnr import PeakSignalNoiseRatio as PSNR
 from torchmetrics.image.fid import FrechetInceptionDistance as FID
 from torchmetrics.image.ssim import MultiScaleStructuralSimilarityIndexMeasure as mSSIM
 from torchmetrics.image.ssim import StructuralSimilarityIndexMeasure as SSIM
-import random
-import time
-from unet import UNet
+
+
 from torch import optim
 import torchvision.transforms as T
-
 
 def get_shape(image):
     if image is None:
@@ -91,196 +95,119 @@ def ffactor(energy=None, z=None, pv=None, px = None, py = None, image = None, fr
         ffs = [basecoeff**(-1j*2*np.pi/fres) for fres in fresnel_number]
     return ffs
 
-def propagate(energy=None, z=None, pv=None, px = None, py = None, fresnel_number = None, image = None, return_complex = False):
-    if energy is not None and z is not None and pv is not None:
-        ffs = ffactor(energy, z, pv, px, py, image)
-
-    elif [energy, z ] == [None, None] and pv != None or [energy, pv] == [None, None] and z != None or [z, pv] == [None, None] and energy != None and fresnel_number != None:
-        ffs = ffactor(energy, z, pv, px, py, image, fresnel_number)
-    elif [energy, z, pv] == [None, None, None] and fresnel_number != None:
-        basecoeff = base_coeff(px, py, image)
-        if type(fresnel_number) is not list:
-            ffs = basecoeff**(-1j*2*np.pi/fresnel_number)
+def get_image(path, idx = None, file_type=None, **kwargs):
+    if type(path) is not list:
+        if type(path) is str:
+            if os.path.isdir(path):
+                images = list(io.imread_collection(path + '/*.' + file_type).files)
+                
+                if idx is None:
+                    image_path = path
+                    
+                else:
+                    image_path = [path[i] for i in idx]
+                    
+                image = load_images_parallel(image_path)
+                
+            elif os.path.isfile(path):
+                image = io.imread(path)
+                image_path = path
+            
+                if len(images.shape) == 2:
+                    image = images
+                elif len(images.shape) == 3:
+                    image = images[idx,:,:] if idx is not None else images
+                else:
+                    image = images[idx,:,:,:] if idx is not None else images
+                image = [image]
+        elif 'numpy' in str(type(path)) or 'torch' in str(type(path)) or 'jax' in str(type(path)):
+            if len(path.shape) == 2:
+                image = path
+            elif len(path.shape) == 3:
+                image = path[idx,:,:] if idx is not None else path
+            else:
+                image = path[idx,:,:,:] if idx is not None else path
+            image = [image]
+            image_path = None
+        elif 'ImageCollection' in str(type(path)):
+            image_path = path.files
+            image_path = [image_path[i] for i in idx] if idx is not None else image_path
+            image = load_images_parallel(image_path)
+        
         else:
-            ffs = [basecoeff**(-1j*2*np.pi/fres) for fres in fresnel_number]
+            try:
+                image_path = None
+                image = path
+            except:
+                image_path = None
+                image = None
+                print("couldn't load image from path")
+            pass
     else:
-        ffs = None
-
-    fft_image = np.fft.fft2(image)
-    if type(ffs) is not list:
-        propagated_images = [np.fft.ifft2(ffs * fft_image)]
-    else:
-        propagated_images = [np.fft.ifft2(ff * fft_image) for ff in ffs]
-    if return_complex:
-        return propagated_images
-    else:
-        return np.abs(propagated_images)**2
+        image = []
+        image_path = []
+        for path in kwargs['path']:
+            image_, image_path_ = get_image(path, kwargs['idx'], kwargs['file_type'])
+            image += image_
+            image_path += image_path_
+        kwargs['image'] = image
+        kwargs['image_path'] = image_path
+    return image, image_path
 
 def prepare_dict(**kwargs):
-    """
-    make sure that the unit of energy is in keV, the unit of detector_pixel_size is in meter, and the unit of distance_sample_detector is in meter
-    """
     similar_terms = [
-        ['energy', 'eneryg_J', 'energy_kev'], 
-        ['lam', 'lamda', 'wavelength', 'wave_length'],
-        ['phase', 'phase_image'],
-        ['attenuation', 'attenuation_image'],
-        ['path', 'paths','images', 'i_inputs', 'path'],
-        ['image_path', 'image_paths'],
+        ['path', 'paths','images', 'i_inputs', 'image', 'i_input', 'hologram', 'intensity'],
+        ['file_type', 'file_types', 'filetype', 'filetypes'],
+        ['idx', 'indices', 'index'],
+        ['energy', 'energy_kev'], 
         ['detector_pixel_size', 'pv'],
         ['distance_sample_detector', 'z'],
         ['fresnel_number', 'fresnel_number', 'fresnelnumbers', 'fresnelnumbers'],
         ['fresnel_factor', 'ffs', 'frensel_factors', 'fresnelfactor'],
+        ['lam', 'lamda', 'wavelength', 'wave_length'],
+        ['phase', 'phase_image'],
+        ['attenuation', 'attenuation_image'],
         ['pad', 'pad_value', 'magnification_factor', 'upscale'],
+        ['downsampling_factor'],
         ['mode', 'pad_mode'],
-        ['method', 'propagation_method'],
+        ['experiment_name'],
+        ['task', 'method'],
         ['alpha', 'alpha_value'],
+        ['abs_ratio'],
         ['delta_beta', 'delta_beta_value'],
-        ['idx', 'indices', 'index'],
-        ['file_type', 'file_types', 'filetype', 'filetypes'],
-        ['image', 'i_input', 'hologram', 'intensity'],
         ['shape_x', 'px'],
         ['shape_y', 'py'],
         ]
-    for terms in similar_terms:
+    for i, terms in enumerate(similar_terms):
         for term in terms:
             if term in kwargs.keys():
-                kwargs[terms[0]] = kwargs[term]
+                kwargs[similar_terms[i][0]] = kwargs[term]
                 break
-        kwargs[terms[0]] = None if terms[0] not in kwargs.keys() else kwargs[terms[0]]
 
-    kwargs['idx'] = [0] if kwargs['idx'] is None else kwargs['idx']
-    kwargs['idx'] = [kwargs['idx']] if type(kwargs['idx']) is not list else kwargs['idx']
-    if kwargs['image'] is None:
-        if type(kwargs['path']) is list:
-            kwargs['path'] = [kwargs['path'][i] for i in kwargs['idx']]
-        if type(kwargs['path']) is not list:
-            kwargs['path'] = [kwargs['path']]
-        kwargs['image_path'] = []
-        for path in kwargs['path']:
-            if type(path) is str:
-                if os.path.isdir(path):
-                    kwargs['image_path'] += list(io.imread_collection(path + '/*.' + kwargs['file_type']).files)
-                elif os.path.isfile(path):
-                    kwargs['image_path'] += [path]
-            elif 'collection' in str(type(path)):
-                kwargs['image_path'] += path.files
-            else:
-                kwargs['image_path'] = kwargs['path']
-        kwargs['image_path'] = [kwargs['image_path'][i] for i in kwargs['idx']] 
-        kwargs['image'] = load_images_parallel(kwargs['image_path']) if kwargs['image_path'][0] is not None else None
-    else:
-        if type(kwargs['image']) is not list:
-            kwargs['image'] = [kwargs['image']]
+    if kwargs['idx'] is not None:
+        kwargs['idx'] = [kwargs['idx']] if type(kwargs['idx']) is not list else kwargs['idx']
 
+    keys_to_search = ['pad', 'mode',   'task',     'alpha', 'delta_beta', 'idx', 'file_type',       'save_path',              'save', 'save_format', 'save_all', 'downsampling_factor', 'fresnel_number', 'fresnel_factor']
+    when_none =     [  1,   'reflect', 'learn_phase',  1e-8,     1e1,      None,     'tif',      os.getcwd() + '/results/',    False,    'tif',         False,          1,                 None,             None]
+    for i in range(len(keys_to_search)):
+        if keys_to_search[i] not in kwargs.keys() or kwargs[keys_to_search[i]] is None:
+            kwargs[keys_to_search[i]] = when_none[i]
     
-    kwargs['energy'] = None if 'energy' not in kwargs.keys() else kwargs['energy']
+    assert kwargs['path'] is not None or kwargs['phase'] is not None or kwargs['attenuation'] is not None, "path, phase or attenuation are not provided"
+    kwargs['image'], kwargs['image_path'] = get_image(kwargs['path'], kwargs['idx'], kwargs['file_type'])
+    if kwargs['downsampling_factor'] > 1:
+        tensor_image = torch_reshape(kwargs['image'])
+        tensor_image = T.Resize((tensor_image.shape[2]//kwargs['downsampling_factor'], tensor_image.shape[3]//kwargs['downsampling_factor']))(tensor_image)
+        kwargs['image'] = [tensor_to_np(tensor_image)]
+        kwargs['distance_sample_detector'] = kwargs['distance_sample_detector'] * kwargs['downsampling_factor'] if kwargs['distance_sample_detector'] is not None else None
+        kwargs['fresnel_number'] = kwargs['fresnel_number'] * kwargs['downsampling_factor']**2 if kwargs['fresnel_number'] is not None else None
+    
+    kwargs['ND'], kwargs['channels'], kwargs['shape_x'], kwargs['shape_y'] = get_shape(kwargs['image'][0])
+    kwargs['shape'] = [kwargs['shape_x'], kwargs['shape_y']]
     kwargs['lam'] = wavelength_from_energy(eneryg_J(kwargs['energy'])).magnitude if kwargs['energy'] is not None else None
-    kwargs['detector_pixel_size'] = None if 'detector_pixel_size' not in kwargs.keys() else kwargs['detector_pixel_size']
-    kwargs['distance_sample_detector'] = None if 'distance_sample_detector' not in kwargs.keys() else kwargs['distance_sample_detector']
-    kwargs['fresnel_number'] = None if 'fresnel_number' not in kwargs.keys() else kwargs['fresnel_number']
-    kwargs['ffs'] = None if 'ffs' not in kwargs.keys() else kwargs['ffs']
-    kwargs['base_coeff'] = None if 'base_coeff' not in kwargs.keys() else kwargs['base_coeff']
-    kwargs['phase'] = None if 'phase' not in kwargs.keys() else kwargs['phase']
-    kwargs['attenuation'] = None if 'attenuation' not in kwargs.keys() else kwargs['attenuation']
-    kwargs['propagate'] = True if kwargs['phase'] is not None or kwargs['attenuation'] is not None else False
-
-    kwargs['ND'], kwargs['channels'], kwargs['px'], kwargs['py'] = get_shape(kwargs['image'])
-    kwargs['shape'] = [kwargs['px'], kwargs['py']]
-    kwargs['shape_x'] = kwargs['px']
-    kwargs['shape_y'] = kwargs['py']
-
     kwargs['fresnel_number'] = fresnel_calc(kwargs['energy'], kwargs['distance_sample_detector'], kwargs['detector_pixel_size']) if kwargs['fresnel_number'] is None else kwargs['fresnel_number']
-    
-    kwargs['base_coeff'] = [base_coeff(image = image) for image in kwargs['image']] if kwargs['image'] is not None else kwargs['base_coeff']
-    if kwargs['fresnel_factor'] is not None:
-        kwargs['fresnel_factor'] = [ffactor(energy = kwargs['energy'], z = kwargs['distance_sample_detector'], pv = kwargs['detector_pixel_size'], image = image, fresnel_number = kwargs['fresnel_number']) for image in kwargs['image']] if 'fresnel_factor' not in kwargs.keys() else kwargs['fresnel_factor']
-    else:
-        kwargs['ffs'] = [ffactor(energy = kwargs['energy'], z = kwargs['distance_sample_detector'], pv = kwargs['detector_pixel_size'], image = image) for image in kwargs['image']] if 'ffs' not in kwargs.keys() and kwargs['image'] is not None else kwargs['ffs']
-    
-    if 'propagate' in kwargs.keys() and kwargs['propagate'] == True:
-        if 'phase' not in kwargs.keys(): 
-            kwargs['phase'] = None
-        if 'attenuation' not in kwargs.keys():
-            kwargs['attenuation'] = None
-        
-        if kwargs['phase'] is not None:
-            if type(kwargs['phase']) is not list:
-                kwargs['phase'] = [kwargs['phase']]
-            if type(kwargs['phase'][0]) is str:
-                kwargs['phase'] = load_images_parallel(kwargs['phase'])
-        
-        if kwargs['attenuation'] is not None:
-            if type(kwargs['attenuation']) is not list:
-                kwargs['attenuation'] = [kwargs['attenuation']]
-            if type(kwargs['attenuation'][0]) is str:
-                kwargs['attenuation'] = load_images_parallel(kwargs['attenuation'])
-
-        kwargs['phase'] = [nor_phase(phase)/np.max(nor_phase(phase)) for phase in kwargs['phase']] if kwargs['phase'] is not None else None
-        kwargs['attenuation'] = [nor_phase(attenuation)/np.max(nor_phase(attenuation)) for attenuation in kwargs['attenuation']] if kwargs['attenuation'] is not None else None
-
-        if kwargs['phase'] is not None and kwargs['attenuation'] is not None:
-            kwargs['wavefunction'] = [np.exp(1j*kwargs['phase'][i] - kwargs['attenuation'][i]) for i in range(len(kwargs['phase']))]
-        elif kwargs['phase'] is not None and kwargs['attenuation'] is None:
-            kwargs['wavefunction'] = [np.exp(1j*kwargs['phase'][i] + np.zeros(kwargs['phase'][0].shape)) for i in range(len(kwargs['phase']))]
-        elif kwargs['phase'] is None and kwargs['attenuation'] is not None:
-            kwargs['wavefunction'] = [np.exp(1j * np.zeros(kwargs['attenuation'][0].shape) - kwargs['attenuation'][i]) for i in range(len(kwargs['attenuation']))]
-        else:
-            kwargs['wavefunction'] = kwargs['image']
-        kwargs['propagated_images'] = [propagate(energy=kwargs['energy'], z=kwargs['distance_sample_detector'], pv=kwargs['detector_pixel_size'], fresnel_number=kwargs['fresnel_number'], image=kwargs['wavefunction'][i]) for i in range(len(kwargs['wavefunction']))] if 'propagated_images' not in kwargs.keys() else kwargs['propagated_images']
-        
-        if kwargs['image'] is None:
-            kwargs['image'] = kwargs['propagated_images']
-        if kwargs['path'] is None or kwargs['path'][0] is None:
-            kwargs['path'] = kwargs['propagated_images']
-        if kwargs['image_path'] is None:
-            kwargs['image_path'] = os.getcwd()
-        if kwargs['base_coeff'] is None:
-            kwargs['base_coeff'] = [base_coeff(image = image) for image in kwargs['image']]
-        if kwargs['fresnel_factor'] is None:
-        
-            kwargs['fresnel_factor'] = [ffactor(energy = kwargs['energy'], z = kwargs['distance_sample_detector'], pv = kwargs['detector_pixel_size'], image = image, fresnel_number=kwargs['fresnel_number']) for image in kwargs['image']]
-    else:
-        kwargs['propagated_images'] = kwargs['image']
-
-    if 'pad' not in kwargs.keys():
-        kwargs['pad'] = 1
-    if 'pad_mode' not in kwargs.keys():
-        kwargs['pad_mode'] = 'reflect'
-    if 'alpha' not in kwargs.keys():
-        kwargs['alpha'] = 1e-8
-    if 'delta_beta' not in kwargs.keys():
-        kwargs['delta_beta'] = 1e1
-    if 'method' not in kwargs.keys():
-        kwargs['method'] = 'GANREC'
-    if 'downsampling_factor' not in kwargs.keys():
-        kwargs['downsampling_factor'] = 1
-    if 'save_path' not in kwargs.keys():
-        kwargs['save_path'] = os.getcwd()
-    if 'save_name' not in kwargs.keys():
-        kwargs['save_name'] = 'reconstructed'
-    if 'save_format' not in kwargs.keys():
-        kwargs['save_format'] = 'tif'
-    if 'save' not in kwargs.keys():
-        kwargs['save'] = False
-    if 'save_all' not in kwargs.keys():
-        kwargs['save_all'] = False
-
-    if kwargs['downsampling_factor'] != 1:
-        kwargs['image'] = [resize(image, (image.shape[0]//kwargs['downsampling_factor'], image.shape[1]//kwargs['downsampling_factor']), anti_aliasing=True) for image in kwargs['image']] if kwargs['image'] is not None else None
-        kwargs['detector_pixel_size'] = kwargs['detector_pixel_size'] * kwargs['downsampling_factor'] if kwargs['detector_pixel_size'] is not None else None
-        if kwargs['fresnel_number'] is None:
-            kwargs['fresnel_number'] = fresnel_calc(kwargs['energy'], kwargs['distance_sample_detector'], kwargs['detector_pixel_size'])  
-        else:
-            if type(kwargs['fresnel_number']) is not list:
-                kwargs['fresnel_number'] = kwargs['fresnel_number']*kwargs['downsampling_factor']**2
-            else:
-                kwargs['fresnel_number'] = [kwargs['fresnel_number'][i]*kwargs['downsampling_factor']**2 for i in range(len(kwargs['fresnel_number']))]
-        
-        kwargs['base_coeff'] = [base_coeff(image = image) for image in kwargs['image']] if kwargs['image'] is not None else None
-        kwargs['fresnel_factor'] = [ffactor(energy = kwargs['energy'], z = kwargs['distance_sample_detector'], pv = kwargs['detector_pixel_size'], image = image) for image in kwargs['image']] if 'fresnel_factor' not in kwargs.keys() and kwargs['image'] is not None else kwargs['fresnel_factor']
+    kwargs['fresnel_factor'] = ffactor(energy = kwargs['energy'], z = kwargs['distance_sample_detector'], pv = kwargs['detector_pixel_size'], image = kwargs['image'], fresnel_number = kwargs['fresnel_number']) if kwargs['fresnel_factor'] is None else kwargs['fresnel_factor']
     return kwargs
-
 
 class tensor_to_numpy(nn.Module):
     def __init__(self):
@@ -460,93 +387,7 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
             self.propagated_forward = torch.stack(propagated_forward, dim = 0)[:,0,:,:,:]
             print(self.propagated_forward.shape)
         return self.propagated_forward
-
-class unet(nn.Module):
-    def __init__(self, input_channels, output_channels, init_features, **kwargs):
-        super(unet, self).__init__()
-
-        self.init_features = init_features
-        self.depth = kwargs['depth'] if 'depth' in kwargs.keys() else 5
-        self.apply_batchnorm = kwargs['apply_batchnorm'] if 'apply_batchnorm' in kwargs.keys() else True
-        self.kernel_size = kwargs['kernel_size'] if 'kernel_size' in kwargs.keys() else 3
-        self.stride = kwargs['stride'] if 'stride' in kwargs.keys() else 1
-
-        
-        self.down_list = [2**(i+5) for i in range(self.depth)]
-        print(self.down_list)
-        self.up_list = [2**(4+self.depth-i) for i in range(self.depth)]
-        print(self.up_list)
-
-        self.in_channels = input_channels
-        self.out_channels = output_channels
-        
-        self.down_list = [self.in_channels] + self.down_list
-        self.up_list = self.up_list + [self.out_channels]
-        
-        self.down_conv = nn.ModuleList([nn.Conv2d(self.down_list[i], self.down_list[i+1], self.kernel_size, self.stride) for i in range(self.depth) if i < self.depth])
-        self.up_conv = nn.ModuleList([nn.ConvTranspose2d(self.up_list[i], self.up_list[i+1], self.kernel_size, self.stride) for i in range(self.depth)])
-        self.down_bn = nn.ModuleList([nn.BatchNorm2d(self.down_list[i+1]) for i in range(self.depth)])
-        self.up_bn = nn.ModuleList([nn.BatchNorm2d(self.up_list[i+1]) for i in range(self.depth)])
-        self.concat_conv = nn.ModuleList([nn.ConvTranspose2d(self.up_list[i+1] + self.up_list[i], self.up_list[i+1], self.kernel_size, self.stride) for i in range(self.depth-1)])
-        self.downsample = nn.MaxPool2d(2, 2)
-        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.stack = nn.Sequential(
-            *self.down_conv,
-            *self.up_conv,
-            *self.concat_conv,
-        )
-        
-    def forward(self, x):
-        out = []
-        x = self.down_conv[0](x)
-        print("1 ", x.shape)
-        x = nn.ReLU()(x)
-        
-        for i in range(1,self.depth):          
-            x = self.down_conv[i](x)
-            print("2 ", x.shape)
-            x = nn.ReLU()(x)
-            x = self.downsample(x)
-            print("3 ", x.shape)
-            if i != self.depth-1:
-                out.append(x)
-
-
-    
-
-        print(self.concat_conv)
-        for i in range(self.depth - 1):
-            print("4 ", x.shape)
-            print("5, ", out[-i-1].shape)
-            print("length", len(out), out[-1].shape)
-            if i != 0:
-                x = torch.cat([x, out[-1]], dim=1)
-                print("after cat    5 ", x.shape)
-                x = self.concat_conv[i](x)
-                print("6 ", x.shape)
-            else:
-                print("bef 7 ", x.shape, out[-1].shape, self.upsample(x).shape)
-                x = torch.cat([x, out[-1]], dim=1)
-                print("7 ", x.shape)
-
-            x = self.upsample(x)
-            print("8 ", x.shape)
-            x = nn.SiLU()(x)
-            if self.apply_batchnorm:
-                x = self.up_bn[i](x)
-                print("9 ", x.shape)
-            x = nn.ReLU()(x)
-            # x = nn.SiLU()(x)
-
-        x = self.up_conv[self.depth-1](x)
-        print("10 ", x.shape)
-        self.out = x
-        
-        print("9 ", x.shape)
-        return x
-    
-
-
+   
 class make_ganrec_model(nn.Module):
     def __init__(self, shape_x, shape_y, conv_num, conv_size, dropout, output_num, fresnel_factor, transformed_images=None, device=None, **kwargs):
         super(make_ganrec_model, self).__init__()
@@ -556,7 +397,7 @@ class make_ganrec_model(nn.Module):
         if self.device is None:
             self.device = torch.device("cuda:4" if torch.cuda.is_available() else "cpu")
         
-        self.base_coeff = to_device(torch_reshape(self.base_coeff, complex=True), self.device) if self.base_coeff is not None else None
+        self.base_coeff = to_device(torch_reshape(self.base_coeff, complex=True), self.device) if 'base_coeff' in self.__dict__.keys() else None
         self.fresnel_factor = to_device(torch_reshape(fresnel_factor, complex=True), self.device) if fresnel_factor is not None else None
         self.transformed_images = to_device(transformed_images, self.device) 
         self.image = to_device(self.image, self.device)
@@ -569,10 +410,8 @@ class make_ganrec_model(nn.Module):
         self.units = kwargs['units'] if 'units' in kwargs.keys() else 128
         self.fc_size = shape_x * shape_y
         self.task = kwargs['task'] if 'task' in kwargs.keys() else 'phase_retrieval'
-        if 'ground_truth' in kwargs.keys() and kwargs['ground_truth'] is not None:
-            self.ground_truth = to_device(torch_reshape(kwargs['ground_truth']), self.device)
-        else:
-            self.ground_truth = None
+        self.input_channels = kwargs['input_channels'] if 'input_channels' in kwargs.keys() and kwargs['input_channels'] is not None else 1
+        
         random.seed(self.seed)
         torch.manual_seed(self.seed)
         torch.cuda.manual_seed(self.seed)
@@ -628,16 +467,12 @@ class make_ganrec_model(nn.Module):
             self.dconv_stack = nn.ModuleList([
                 deconv2d_layer(in_channels=self.conv_num, out_channels=self.conv_num, kernel_size=self.conv_size+deconv_size_add_list[i], stride=1, apply_batchnorm=True, normal_init=True) for i in range(len(deconv_size_add_list))
             ])
-
-            self.downsample = nn.MaxPool2d(2, 2)
-            self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-
             self.cnn_stack = nn.ModuleList([      
                 conv2d_layer(in_channels=1, out_channels=self.conv_num, kernel_size=self.conv_size, stride=1), 
                 *self.conv_stack[0:],
-                self.downsample,
                 *self.dconv_stack,
                 deconv2d_layer(in_channels=self.conv_num, out_channels=self.output_num, kernel_size=self.conv_size, stride=1),
+    
             ])
         
         if self.depth == 0:
@@ -646,7 +481,7 @@ class make_ganrec_model(nn.Module):
                 *self.cnn_stack,
             ), self.device)
         else:
-            self.generator_model = to_device(nn.Sequential(*self.fc_stack, UNet(n_channels=1, n_classes=self.output_num, bilinear=True)), self.device)
+            self.generator_model = to_device(nn.Sequential(*self.fc_stack, UNet(n_channels=self.input_channels, n_classes=self.output_num, bilinear=True)), self.device)
 
         if 'init_model' in kwargs.keys():
             if kwargs['init_model']:
@@ -677,7 +512,8 @@ class make_ganrec_model(nn.Module):
             self.task = 'phase_retrieval'
 
         if self.task == 'learn_gaussian':
-            self.gaussian_filter = to_device(T.GaussianBlur(kernel_size=self.gaussian_kernel_size, sigma=self.sigma), self.device)
+            self.gaussian_filter = to_device(Gaussian_challenge(self.transformed_images, kernel_size=self.gaussian_kernel_size, sigma=self.sigma), self.device)
+            # self.gaussian_filter = to_device(T.GaussianBlur(kernel_size=self.gaussian_kernel_size, sigma=self.sigma), self.device)
 
         self.ssim = to_device(SSIM(), self.device)
         self.psnr = to_device(PSNR(), self.device)
@@ -685,6 +521,10 @@ class make_ganrec_model(nn.Module):
         # self.fid.update(self.transformed_images, real=True)
         
 
+        if 'ground_truth' in kwargs.keys() and kwargs['ground_truth'] is not None:
+            self.ground_truth = to_device(self.transform(kwargs['ground_truth']), self.device)
+        else:
+            self.ground_truth = None
 
         self.reshaped = to_device(transform(self.transformed_images, 'reshape') , self.device)
         self.normalized = transform(self.reshaped, 'normalize')
@@ -702,19 +542,28 @@ class make_ganrec_model(nn.Module):
                 if m.bias is not None:
                     init.zeros_(m.bias)
 
-    def refine_parameters_using_condition(self, condition = None, values = None, change_from_soure = False, info = None, ratio = None, plot_pd=False, show_images=False):
+    def run_different_scenarios(model, df , i):
+        df.loc[i, 'iter_num'] = len(model.gen_loss_list)
+        df.loc[i, 'gen_loss'] = model.gen_loss_list[-1]
+        df.loc[i, 'dis_loss'] = model.dis_loss_list[-1]
+        df.loc[i, 'main_diff'] = model.main_diff_list[-1]
+        df.loc[i, 'ssim_list'] = model.ssim_list[-1]
+        df.loc[i, 'psnr_list'] = model.psnr_list[-1]
+        df.loc[i, 'mssim_list'] = model.mssim_list[-1]
+        df.loc[i, 'setup_info'] = get_file_nem(model.__dict__)
+        return df
+    
+    def refine_parameters_using_condition(self, condition = None, values = None, change_from_soure = False, info = None, ratio = None, plot_pd=False, show_images=False, cmap = 'gray'):
         if ratio is None:
-            ratio = {'l1_ratio': 10, 'contrast_ratio': 0, 'normalized_ratio': 5, 'brightness_ratio': 0, 'contrast_normalize_ratio': 0, 'brightness_normalize_ratio': 0, 'l2_ratio': 0, 'fourier_ratio': 0}
-        
+            ratio = {'l1_ratio': 10, 'contrast_ratio': 0, 'normalized_ratio': 0, 'brightness_ratio': 0, 'reg_l1_ratio': 0.001, 'reg_l2_ratio': 0.001, 'contrast_normalize_ratio': 0, 'brightness_normalize_ratio': 0, 'l2_ratio': 0, 'fourier_ratio': 0, 'norm_ratio': 0, 'entropy_ratio': 1, 'real_loss_ratio': 1, 'fake_loss_ratio': 1}
         
         
         last_unblurred_images = []
         last_phases = []
         last_atts = []
         last_props = []
-
+        df = pd.DataFrame(columns=['iter_num', 'gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list', 'setup_info'])
         if type(ratio) is list:
-            df = pd.DataFrame(columns=['iter_num', 'gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list', 'setup_info'])
             df.index.name = 'ratios'
             
             for i, r in enumerate(ratio):
@@ -750,88 +599,98 @@ class make_ganrec_model(nn.Module):
                 plot_pandas(df, column_range=column_range)
             if show_images:
                 if self.task == 'learn_gaussian':
-                    visualize(last_unblurred_images, title = ['unblurred_' + str(i) for i in range(len(last_unblurred_images))], rows = int(np.sqrt(len(last_unblurred_images))), cols = int(np.sqrt(len(last_unblurred_images))))
-                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))], rows = int(np.sqrt(len(last_unblurred_images))), cols = int(np.sqrt(len(last_unblurred_images))) )
+                    visualize(last_unblurred_images, title = ['unblurred_' + str(i) for i in range(len(last_unblurred_images))], cmap = cmap)
+                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))], cmap = cmap)
                 else:
-                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))])
-                    visualize(last_phases, title = ['phase_' + str(i) for i in range(len(last_phases))])
+                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))], cmap=cmap)
+                    visualize(last_phases, title = ['phase_' + str(i) for i in range(len(last_phases))], cmap=cmap)
 
             if self.task == 'learn_gaussian':
                 return df, last_unblurred_images, last_props, min_vals, max_vals
             else:
                 return df, last_props, last_phases, last_atts, min_vals, max_vals
-        
-        df = pd.DataFrame(columns=[condition, 'iter_num', 'gen_loss', 'dis_loss', 'main_diff',  'setup_info'])
-        df.index.name = condition
+        else:
+            df.index.name = condition
 
-        if type(values) is not list:
-            values = [values]
+            if type(values) is not list:
+                values = [values]
 
-        for value in values:        
-            if change_from_soure == True:
-                info[condition] = value if condition in info.keys() else info.update({condition: value})
-                new_dataloader = Ganrec_Dataloader(**info)
-                model = make_ganrec_model(**new_dataloader.__dict__)
-            else:
-                kwargs = self.__dict__
-                kwargs[condition] = value if condition in kwargs.keys() else kwargs.update({condition: value})
-                model = make_ganrec_model(**kwargs)
+            for i, value in enumerate(values):    
+                if change_from_soure == True:
+                    info[condition] = value if condition in info.keys() else info.update({condition: value})
+                    new_dataloader = Ganrec_Dataloader(**info)
+                    model = make_ganrec_model(**new_dataloader.__dict__)
+                else:
+                    kwargs = self.__dict__
+                    kwargs[condition] = value if condition in kwargs.keys() else kwargs.update({condition: value})
+                    model = make_ganrec_model(**kwargs)
+
+                if self.task == 'learn_gaussian':
+                    model.train(save_model = False, save_model_path = 'model/ganrec_model', **ratio)
+                    last_unblurred_images.append(model.unblurred_list[-1])
+                    last_props.append(model.propagated_intensity_list[-1])
+
+                else:
+                    model.train(save_model = False, save_model_path = 'model/ganrec_model', **ratio)
+                    last_phases.append(model.phase_list[-1])
+                    last_atts.append(model.attenuation_list[-1])
+                    last_props.append(model.propagated_intensity_list[-1])
+
+                print('gen_loss: ', model.gen_loss_list[-1], 'dis_loss: ', model.dis_loss_list[-1], 'main_diff: ', model.main_diff_list[-1])
+                df.loc[i, 'iter_num'] = len(model.gen_loss_list)
+                df.loc[i, 'gen_loss'] = model.gen_loss_list[-1]
+                df.loc[i, 'dis_loss'] = model.dis_loss_list[-1]
+                df.loc[i, 'main_diff'] = model.main_diff_list[-1]
+                df.loc[i, 'ssim_list'] = model.ssim_list[-1]
+                df.loc[i, 'psnr_list'] = model.psnr_list[-1]
+                df.loc[i, 'mssim_list'] = model.mssim_list[-1]
+                df.loc[i, 'setup_info'] = get_file_nem(model.__dict__)
+            #replace nan values with 0
+            df = df.fillna(0)
+            column_range = ['main_diff', 'gen_loss', 'dis_loss', 'ssim_list', 'psnr_list', 'mssim_list']
+            #list_element.index(element)
+            min_vals = [df[column].min() for column in column_range], [df[column].idxmin() for column in column_range]
+            max_vals = [df[column].max() for column in column_range], [df[column].idxmax() for column in column_range]
+
+            if plot_pd:
+                plot_pandas(df, column_range=column_range)
+            if show_images:
+                if self.task == 'learn_gaussian':
+                    visualize(last_unblurred_images, title = ['unblurred_' + str(i) for i in range(len(last_unblurred_images))], cmap = cmap)
+                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))], cmap = cmap)
+                else:
+                    visualize(last_props, title = ['propagated_intensity_' + str(i) for i in range(len(last_props))], cmap=cmap)
+                    visualize(last_phases, title = ['phase_' + str(i) for i in range(len(last_phases))], cmap=cmap)
+
             if self.task == 'learn_gaussian':
-                gen_loss_list, dis_loss_list, propagated_intensity_list, unblurred_images_list = model.train(save_model = False, save_model_path = 'model/ganrec_model', **ratio)
+                return df, last_unblurred_images, last_props, min_vals, max_vals
             else:
-                gen_loss_list, dis_loss_list, propagated_intensity_list, phase_list, attenuation_list = model.train(save_model = False, save_model_path = 'model/ganrec_model', **ratio)
-            
-            print('gen_loss: ', gen_loss_list[-1], 'dis_loss: ', dis_loss_list[-1], 'main_diff: ', model.main_diff_list[-1])
-            df.loc[value, condition] = value
-            df.loc[value, 'iter_num'] = len(gen_loss_list)
-            df.loc[value, 'gen_loss'] = gen_loss_list[-1]
-            df.loc[value, 'dis_loss'] = dis_loss_list[-1]
-            df.loc[value, 'main_diff'] = model.main_diff_list[-1]
-            df.loc[value, 'setup_info'] = get_file_nem(model.__dict__)
-            last_props.append(propagated_intensity_list[-1])
-            if self.task == 'learn_gaussian':
-                last_unblurred_images.append(unblurred_images_list[-1])
-            else:
-                last_phases.append(phase_list[-1])
-                last_atts.append(attenuation_list[-1])
-        column_range = ['main_diff', 'gen_loss', 'dis_loss']
-        #list_element.index(element)
-        min_vals = [df[column].min() for column in column_range], [df[column].idxmin() for column in column_range]
-        max_vals = [df[column].max() for column in column_range], [df[column].idxmax() for column in column_range]
-        indices_in_values = [values.index(min_vals[1][i]) for i in range(len(min_vals[1]))] 
-        if plot_pandas:         
-            plot_pandas(df, column_range, x_column = condition)
-        if show_images:
-            if self.task == 'learn_gaussian':
-                visualize([last_unblurred_images[-1], last_props[-1]], title = ['unblurred', 'propagated_intensity'])
-            else:
-                visualize([last_props[-1], last_phases[-1], last_atts[-1]], title = ['propagated_intensity', 'phase', 'attenuation'])
-        return df, last_props, last_phases, last_atts, min_vals, max_vals, indices_in_values
+                return df, last_props, last_phases, last_atts, min_vals, max_vals
 
     def make_model(self):
         # self.generator = self.generator_model
         # self.discriminator = self.discriminator_model
+        
+        # self.generator_optimizer = torch.optim.Adam(self.generator_model.parameters(), lr=1e-1)
+        # self.discriminator_optimizer = torch.optim.Adam(self.discriminator_model.parameters(), lr=1e-2)
 
-        if 'task' in self.__dict__.keys() and self.task == 'learn_gaussian':
-            if 'g_learning_rate' not in self.__dict__.keys():
-                self.g_learning_rate = 1e-5
-            if 'd_learning_rate' not in self.__dict__.keys():
-                self.d_learning_rate = 1e-8
-            if 'weight_decay' not in self.__dict__.keys():
-                self.weight_decay = 1e-8
-            if 'momentum' not in self.__dict__.keys():
-                self.momentum = 0.9
-            if 'amp' not in self.__dict__.keys():
-                self.amp = False
+        # if 'task' in self.__dict__.keys() and self.task == 'learn_gaussian':
+        if 'g_learning_rate' not in self.__dict__.keys():
+            self.g_learning_rate = 1e-5
+        if 'd_learning_rate' not in self.__dict__.keys():
+            self.d_learning_rate = 1e-8
+        if 'weight_decay' not in self.__dict__.keys():
+            self.weight_decay = 1e-8
+        if 'momentum' not in self.__dict__.keys():
+            self.momentum = 0.9
+        if 'amp' not in self.__dict__.keys():
+            self.amp = False
 
-            self.generator_optimizer = optim.RAdam(self.generator_model.parameters(),lr=self.g_learning_rate, weight_decay=self.weight_decay)
-            self.discriminator_optimizer = optim.Adam(self.discriminator_model.parameters(), lr=self.d_learning_rate, weight_decay=self.weight_decay, amsgrad=True, maximize=True)
-            
-            self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.generator_optimizer, 'min', patience=5)  # goal: maximize Dice score
-            self.grad_scaler = torch.cuda.amp.GradScaler(enabled=self.amp)    
-        else:
-            self.generator_optimizer = torch.optim.Adam(self.generator_model.parameters(), lr=1e-1)
-            self.discriminator_optimizer = torch.optim.Adam(self.discriminator_model.parameters(), lr=1e-2)
+        self.generator_optimizer = optim.RAdam(self.generator_model.parameters(),lr=self.g_learning_rate, weight_decay=self.weight_decay)
+        self.discriminator_optimizer = optim.Adam(self.discriminator_model.parameters(), lr=self.d_learning_rate, weight_decay=self.weight_decay, amsgrad=True, maximize=True)
+        
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(self.generator_optimizer, 'min', patience=5)  # goal: maximize Dice score
+        self.grad_scaler = torch.cuda.amp.GradScaler(enabled=self.amp)    
         
     def forward_generator(self, x):
         self.pred = self.generator_model(x)
@@ -866,8 +725,15 @@ class make_ganrec_model(nn.Module):
         if x is None:
             x = self.transform(self.pred)
         else:
-            x = self.transform(x)
-        self.blurred = to_device(self.transform(self.gaussian_filter(x)), self.device)
+            if self.output_num == 1:
+                x = transform(x, 'reshape')
+            elif self.output_num == 2:
+                self.phase = x[:,0,:,:]
+                self.attenuation = x[:,1,:,:]
+                self.modulus = torch_reshape(torch.abs(torch.exp(1j*self.phase) * torch.exp(-self.attenuation))**2)
+                x = torch_reshape(self.phase)
+            # x = self.transform(x)
+        self.blurred = to_device((self.gaussian_filter(x)), self.device)
         self.difference = self.blurred - self.transformed_images
         if self.l1_ratio != 0:
             self.main_diff = torch.mean(torch.abs(self.difference))
@@ -913,12 +779,18 @@ class make_ganrec_model(nn.Module):
         fourier_diff_real = torch.mean(torch.square(torch.log(torch.abs(torch.fft.fft2(propagated_intensity).real + 1e-10)))) if self.fourier_ratio != 0 else 0
         fourier_diff_imag = torch.mean(torch.square(torch.log(torch.abs(torch.fft.fft2(propagated_intensity).imag + 1e-10)))) if self.fourier_ratio != 0 else 0
         fourier_diff = fourier_diff_real + fourier_diff_imag
-
-        reg_l2_loss = torch.mean(torch.square(self.pred)) if self.reg_l2_ratio != 0 else 0
+        #we use a truncated - quadratic gradient regularization
+        reg_l2_loss = torch.mean(torch.square(self.pred[:, :, 1:, :] - self.pred[:, :, :-1, :])) + torch.mean(torch.square((self.pred[:, :, :, 1:] - self.pred[:, :, :, :-1]))) if self.reg_l2_ratio != 0 else 0
+        if reg_l2_loss > 0: 
+            reg_l2_loss = 1 if reg_l2_loss >1 else reg_l2_loss
+            
         reg_l1_loss = torch.mean(torch.abs(self.pred[:, :, 1:, :] - self.pred[:, :, :-1, :])) + torch.mean(torch.abs((self.pred[:, :, :, 1:] - self.pred[:, :, :, :-1]))) if self.reg_l1_ratio != 0 else 0
-
+        if self.epoch > self.iter_num//10:
+            self.reg_l1_ratio = 0
+            self.reg_l2_ratio = 0
+        #if self.modulus exists, then make sure
         self.final_loss =  self.entropy_ratio * cross_entropy + self.l1_ratio * l1_loss + self.contrast_ratio * contrast_diff + self.norm_ratio * norm_diff + self.normalized_ratio * normalized_diff + self.brightness_ratio * brightness_diff + self.contrast_normalize_ratio * contrast_noramlize_difference + self.brightness_normalize_ratio * brightness_noramlize_difference + self.l2_ratio * l2_loss + self.fourier_ratio * fourier_diff
-        return self.final_loss + self.reg_l2_ratio * reg_l2_loss + self.reg_l1_ratio * reg_l1_loss
+        return self.final_loss + reg_l2_loss * self.reg_l2_ratio + reg_l1_loss * self.reg_l1_ratio
     
     def discriminator_loss(self, real_output, fake_output):
         real_loss = torch.mean(torch.nn.BCEWithLogitsLoss()(real_output, torch.ones_like(real_output)))
@@ -957,11 +829,10 @@ class make_ganrec_model(nn.Module):
         if self.task == 'learn_gaussian':
             self.unblurred_list = []
 
-        self.requires_grad_(True)
         self.start_time = time.time()  
 
         stop_training = False
-
+        print('start training')
         for i in range(iter_num):
             self.epoch = i
             if self.task == 'learn_gaussian':
@@ -977,14 +848,20 @@ class make_ganrec_model(nn.Module):
 
             self.ssim_list.append(tensor_to_np(self.ssim(self.transformed_images, self.propagated_intensity)))
             self.psnr_list.append(tensor_to_np(self.psnr(self.transformed_images, self.propagated_intensity)))
-            self.mssim_list.append(tensor_to_np(self.mssim(self.transformed_images, self.propagated_intensity))) 
+            try:
+                self.mssim_list.append(tensor_to_np(self.mssim(self.transformed_images, self.propagated_intensity))) 
+            except:
+                self.mssim_list.append(None)
 
             if self.ground_truth is not None:
                 if self.task == 'learn_gaussian':
                     self.ground_truth_difference = tensor_to_np(self.transform(self.unblurred) - self.transform(self.ground_truth))
                     self.ground_ssim_list.append(tensor_to_np(self.ssim(self.ground_truth, self.unblurred)))
                     self.ground_psnr_list.append(tensor_to_np(self.psnr(self.ground_truth, self.unblurred)))
-                    self.ground_mssim_list.append(tensor_to_np(self.mssim(self.ground_truth, self.unblurred)))
+                    try:
+                        self.ground_mssim_list.append(tensor_to_np(self.mssim(self.ground_truth, self.unblurred)))
+                    except:
+                        self.ground_mssim_list.append(None)
                     self.ground_main_diff_list.append(np.mean(np.abs(self.ground_truth_difference)))
                 else:
                     self.ground_truth_difference = tensor_to_np(self.phase - self.ground_truth)
@@ -1003,13 +880,13 @@ class make_ganrec_model(nn.Module):
             if i > 50:
                 if self.task == 'learn_gaussian':
                     #if the std of the last 10 propagated_intensity is less than 1e-3, stop the training
-                    if np.std(self.main_diff_list[-50:]) < 1e-6:
+                    if np.std(self.main_diff_list[-50:]) < 1e-8:
                         print('std of propagated_intensity is less than 1e-3, stop the training')
                         stop_training = True
 
             self.epoch_time.append(time.time() - self.start_time)
 
-            if i ==0 or (i+1) % (self.iter_num//3) == 0 or stop_training is True:
+            if i ==0 or (i+1) % (self.iter_num//2) == 0 or stop_training is True:
                 print('epoch', i, 'gen_loss: ', self.g_loss, 'dis_loss: ', self.d_loss, 'main_diff: ', self.main_diff, "t_epoch: ", self.epoch_time[-1], "remaining time: ", time_to_string(self.epoch_time[0] * iter_num - self.epoch_time[0] * i), 'ssim: ', self.ssim_list[-1], 'psnr: ', self.psnr_list[-1])
             
             if stop_training is True:
@@ -1023,7 +900,7 @@ class make_ganrec_model(nn.Module):
         else:
             return self.gen_loss_list, self.dis_loss_list, self.propagated_intensity_list, self.phase_list, self.attenuation_list
         
-    def visualize(self, show_or_plot = 'show'):
+    def visualize(self, show_or_plot = 'show', cmap = 'coolwarm', dict = None, axis = 'off', plot_axis = 'half'):
         if self.task == 'learn_gaussian':
             learned_image = self.unblurred_list[-1]
         else:
@@ -1048,10 +925,6 @@ class make_ganrec_model(nn.Module):
             df['ground_mssim_list'] = self.ground_mssim_list
             df['ground_main_diff_list'] = self.ground_main_diff_list
 
-            
-
-
-
         if self.ground_truth is not None:
             ground_images = [tensor_to_np(self.ground_truth), tensor_to_np(self.ground_truth) - learned_image]
             ground_image_titles = ['ground_truth', 'diff b/n \n GT and learned']
@@ -1064,7 +937,7 @@ class make_ganrec_model(nn.Module):
         [images.append(ground_images[i]) for i in range(len(ground_images)) if ground_images != []]
         [image_titles.append(ground_image_titles[i]) for i in range(len(ground_image_titles)) if ground_image_titles != []]
 
-        fig_1 = visualize(images, show_or_plot = show_or_plot, title = image_titles)
+        fig_1 = visualize(images, show_or_plot = show_or_plot, title = image_titles, cmap = cmap, dict = dict, axis = axis, plot_axis = plot_axis)
        
         if self.ground_truth is not None:
             plot_pandas(df, column_range=['gen_loss', 'dis_loss', 'main_diff', 'ssim_list', 'psnr_list', 'mssim_list', 'ground_ssim_list', 'ground_psnr_list', 'ground_mssim_list', 'ground_main_diff_list'])
@@ -1073,7 +946,7 @@ class make_ganrec_model(nn.Module):
         
         return fig_1
     
-    def live_plot(self, iter_num = None, rate = None):
+    def live_plot(self, iter_num = None, rate = None, cmap = 'gray'):
 
         import matplotlib.pyplot as plt
         from IPython.display import clear_output
@@ -1096,20 +969,20 @@ class make_ganrec_model(nn.Module):
                 plt.legend()
                 plt.subplot(1,5,1)
                 plt.title('input_image')
-                plt.imshow(tensor_to_np(self.transformed_images), cmap='coolwarm')
+                plt.imshow(tensor_to_np(self.transformed_images), cmap=cmap)
                 plt.colorbar()
                 plt.subplot(1,5,2)
                 plt.title('propagated_intensity')
-                plt.imshow(self.propagated_intensity_list[i], cmap='coolwarm')
+                plt.imshow(self.propagated_intensity_list[i], cmap=cmap)
                 plt.colorbar()
                 plt.subplot(1,5,5)
                 if self.task == 'learn_gaussian':
                     plt.title('unblurred')
-                    plt.imshow(self.unblurred_list[i], cmap='coolwarm')
+                    plt.imshow(self.unblurred_list[i], cmap=cmap)
                     plt.colorbar()
                 else:
                     plt.title('phase')
-                    plt.imshow(self.phase_list[i], cmap='coolwarm')
+                    plt.imshow(self.phase_list[i], cmap=cmap)
                     plt.colorbar()
                 plt.gca()
                 plt.subplot(1,5,3)
@@ -1145,394 +1018,5 @@ class make_ganrec_model(nn.Module):
         io.imsave(path + 'abs/attenuation_' + name + '.npy', self.attenuation_list[-1])
 
         return path + name
-    
-def shorten(string):
-    if 'e' in string:
-        left = string.split('e')[0][:7]
-        right = string.split('e')[1][:7]
-        return left + 'e' + right
-    else:
-        if '.' in string:
-            count = 0
-            for i in range(len(string.split('.')[1])):
-                if string[i] == '0':
-                    count += 1
-            return string[:count+5]
-        else:
-            return string[:7]
-        
-def give_title(image, title = '', idx = '', min_max = True):    
-    if min_max:
-        min_val_orig = np.min(image)
-        max_val_orig = np.max(image)
-        txt_min_val = shorten(str(min_val_orig))
-        txt_max_val = shorten(str(max_val_orig))
-    else:
-        txt_min_val = ''
-        txt_max_val = ''
-    title = 'im='+ str(idx+1) if title == '' else title
-    return title + ' (' + txt_min_val + ', ' + txt_max_val + ')'
 
-def give_titles(images, titles = [], min_max = True):
-    titles = [titles] if type(titles) is not list else titles
-    if len(titles) <= len(images):
-        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(titles))]
-        n_for_rest = np.arange(len(titles), len(images))
-        titles.extend([give_title(images[i], idx=i, min_max = min_max) for i in n_for_rest])
-    else:
-        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(images))]
-    return titles
-
-def get_row_col(images, show_all = False):
-    if show_all:
-        rows = int(np.sqrt(len(images)))
-        cols = int(np.sqrt(len(images)))
-        return rows, cols + (len(images) - rows*cols)//rows
-    
-    if len(images) == 1:
-        rows = 1
-        cols = 1
-    elif len(images) <= 5:
-        rows = 1
-        cols = len(images)
-    else:
-        rows = 2
-        cols = len(images)//2
-    if rows*cols > len(images):
-        images = images[:rows*cols - int(rows*cols/len(images))]
-        rows, cols = get_row_col(images)
-    print('rows: ', rows, 'cols: ', cols)
-    return rows, cols
-
-def chose_fig(images, idx = None, rows = None, cols = None, show_all = False, add_length = None):
-    (rows, cols) = get_row_col(images) if rows is None or cols is None else (rows, cols)
-    shape = images[0].shape
-    if shape[0] > 260:
-        fig_size = (shape[1]*cols/100+1, shape[0]*rows/100)
-    elif shape[0] > 100 and shape[0] <= 260:
-        fig_size = (shape[1]*cols/50+1, shape[0]*rows/50)
-    else:
-        fig_size = (shape[1]*cols/25+1, shape[0]*rows/25)
-    if add_length is not None:
-        fig_size = (fig_size[0]+add_length, fig_size[1])
-    fig, ax = plt.subplots(rows, cols, figsize=fig_size, squeeze=False)
-    ax.reshape(rows, cols)
-    if rows == 1 and cols == 1:
-        return fig, ax, rows, cols, fig_size
-    elif rows == 1:
-        ax = ax.reshape(1, cols)
-        return fig, ax, rows, cols, fig_size
-    elif cols == 1:
-        ax = ax.reshape(rows, 1)
-        return fig, ax, rows, cols, fig_size
-    else:
-        return fig, ax, rows, cols, fig_size
-    
-def get_setup_info(dict = {}):
-    #rearrange them in a descending order based on length
-    dict = {k: v for k, v in sorted(dict.items(), key=lambda item: len(item[0]) + len(str(item[1])), reverse=True)}
-    len_line = 0
-    for key, value in dict.items():
-        if type(value) == str or  type(value) == int or type(value) == float or type(value) == bool: 
-            if len(key) > len_line:
-                len_line = len(key)
-        elif type(value) == np.ndarray:
-            if len(value.shape) == 0:
-                if len(key) > len_line:
-                    len_line = len(key)
-        else: 
-            try:
-                from ganrec_dataloader import tensor_to_np
-                if type(tensor_to_np(value)) == np.ndarray and len(tensor_to_np(value).shape) == 0:
-                    if len(key) > len_line:
-                        len_line = len(key)
-            except:
-                pass
-    len_line += 10
-    line = '_'*len_line 
-    information = line + '\n'
-    for key, value in dict.items():
-        if type(value) == str or type(value) == int or type(value) == float or type(value) == bool:
-            information += '| ' +key +': '+ str(value) +' \n'
-        elif type(value) == np.ndarray and len(value.shape) == 0:
-            information += '| ' +key +': '+ str(value) +' \n'
-        else:
-            try:
-                from ganrec_dataloader import tensor_to_np
-                if type(tensor_to_np(value)) == np.ndarray and len(tensor_to_np(value).shape) == 0:
-                    information += '| ' +key +': '+ str(tensor_to_np(value)) +' \n'
-            except:
-                pass
-    information += line + ' \n'
-    return information, len_line
-
-def get_file_nem(dict):
-    name = ''
-    important_keys = ['experiment_name', 'abs_ratio', 'iter_num', 'downsampling_factor', 'l1_ratio', 'contrast_ratio', 'normalized_ratio', 'brightness_ratio', 'contrast_normalize_ratio', 'brightness_normalize_ratio', 'l2_ratio', 'fourier_ratio']
-    for key in important_keys:
-        if key in dict.keys():
-            name += key + '_' + str(dict[key]) + '__'
-    return name
   
-def create_table_info(dict={}):
-    import pandas as pd
-    df = pd.DataFrame()
-    for key, value in dict.items():
-        if type(value) != np.ndarray:
-            df[key] = [value]
-        elif type(value) == np.ndarray and len(value.shape) == 0:
-            df[key] = [value]
-    df = df.T
-    #create a plot with the information
-    fig, ax = plt.subplots(figsize=(20, 10))
-    #make the rows and columns look like a table
-    ax.axis('tight')
-    ax.axis('off')
-    #create the table
-    table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', rowLabels=df.index, cellLoc='center')
-    #change the font size
-    table.set_fontsize(14)
-    #change the cell height
-    table.scale(1, 2)
-    
-    return df,ax, table
-
-def give_titles(images, titles = [], min_max = True):
-    titles = [titles] if type(titles) is not list else titles
-    if len(titles) <= len(images):
-        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(titles))]
-        n_for_rest = np.arange(len(titles), len(images))
-        titles.extend([give_title(images[i], idx=i, min_max = min_max) for i in n_for_rest])
-    else:
-        titles = [give_title(images[i], title = titles[i], idx=i, min_max = min_max) for i in range(len(images))]
-    return titles
-                       
-def val_from_images(image, type_of_image = 'nd.array'):
-    if 'ndarray' in str(type_of_image):
-        if len(image.shape) == 2:
-            val = image
-        elif len(image.shape) == 3:
-            val = [image[j,:,:] for j in range(len(image))]
-        else:
-            val = [image[j,0,:,:] for j in range(len(image))]
-    elif 'Tensor' in str(type_of_image):
-        from ganrec_dataloader import tensor_to_np
-        image = tensor_to_np(image)
-        if type(image) is not list:
-            if len(image.shape) == 2:
-                val = image
-            elif len(image.shape) == 3:
-                val = [image[j,:,:] for j in range(len(image))]
-            elif len(image.shape) == 4:
-                val = [image[j,0,:,:] for j in range(len(image))]
-            elif len(image.shape) == 1:
-                val = image
-        else:
-            val = image
-    elif 'jax' in str(type_of_image):
-        #jax to numpy
-        image = np.array(image)
-        if len(image.shape) == 2:
-            val = image
-        elif len(image.shape) == 3:
-            val = [image[j,:,:] for j in range(len(image))]
-        elif len(image.shape) == 4:
-            val = [image[j,0,:,:] for j in range(len(image))]
-        elif len(image.shape) == 1:
-            val = image
-        else:
-            val = image
-    elif type_of_image == 'str':
-        val = io.imread_collection(image)
-    elif 'collection' in str(type_of_image):
-        val = image
-    elif 'list' in str(type_of_image):
-        val = [val_from_images(image, type_of_image = type(image)) for image in image]
-    else:
-        assert False, "type_of_image is not nd.array, list or torch.Tensor"
-    return val
-      
-def convert_images(images, idx = None):
-    if idx is not None:
-        images = [images[i] for i in idx]
-    if type(images) is list:
-        vals = [val_from_images(image, type_of_image = type(image)) for image in images]
-  
-        for i, val in enumerate(vals):
-            if type(val) is list:
-                [vals.append(val[j]) for j in range(len(val))]
-                vals.pop(i)
-        images = vals
-    else:
-        images = val_from_images(images, type_of_image = type(images))
-    for i, val in enumerate(images):
-        if type(val) is list:
-            [images.append(val[j]) for j in range(len(val))]
-            images.pop(i)
-    return images
-
-def visualize(images, idx = None, rows = None, cols = None, show_or_plot = 'show', cmap = 'coolwarm', title = '', axis = 'on', plot_axis = 'half', min_max = True, dict = None, save_path=None):
-    """
-    Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r',
-    """
-    #'Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r',
-    images = convert_images(images, idx)
-    titles = give_titles(images, title, min_max)
-    shape = images[0].shape
-    
-    if dict is not None:
-        description_title, add_length = get_setup_info(dict)
-    else:
-        add_length = None
-    fig, ax, rows, cols, fig_size= chose_fig(images, idx, rows, cols, add_length)
-   
-    if show_or_plot == 'plot':
-        if plot_axis == 'half':
-            [ax[i, j].plot(images[i*cols + j][shape[0]//2, :]) for i in range(rows) for j in range(cols)]
-        else:
-            assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
-            [ax[i, j].plot(images[i*cols + j][plot_axis, :]) for i in range(rows) for j in range(cols)]
-    elif show_or_plot == 'both':
-        [ax[i, j].imshow(images[i*cols + j], cmap = cmap) for i in range(rows) for j in range(cols)]
-        if plot_axis == 'half':
-            [ax[i, j].twinx().plot(images[i*cols + j][shape[0]//2, :]) for i in range(rows) for j in range(cols)]
-        else:
-            assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
-            [ax[i, j].twinx().plot(images[i*cols + j][plot_axis, :]) for i in range(rows) for j in range(cols)]
-    
-    [ax[i, j].axis(axis) for i in range(rows) for j in range(cols)]
-    [ax[i, j].set_title(titles[i*cols + j], fontsize = 12) for i in range(rows) for j in range(cols)]
-    plt.tight_layout()
-    if show_or_plot != 'plot':
-        [fig.colorbar(ax[i, j].imshow(images[i*cols + j], cmap = cmap), ax=ax[i, j]) for i in range(rows) for j in range(cols)]
-    fig.patch.set_facecolor('xkcd:light grey')
-    
-    if dict is not None:
-        fig.subplots_adjust(left=add_length/150)
-        fig.suptitle(description_title, fontsize=10, y=0.95, x=0.05, ha='left', va='center', wrap=True, color='blue')
-    plt.show()
-    if save_path is not None:
-        plt.savefig(save_path)
-    return fig
-
-
-def sns_visualize(images, idx = None, rows = None, cols = None, show_or_plot = 'show', cmap = 'coolwarm', title = '', axis = 'off', plot_axis = 'half'):
-    """
-    Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r',
-    """
-    
-    import seaborn as sns
-    images = convert_images(images, idx)
-    titles = give_titles(images, title)
-    shape = images[0].shape
-    fig, ax, rows, cols = chose_fig(images, idx, rows, cols)
-
-    if rows == 1 and cols == 1:
-        if show_or_plot == 'plot':
-            if plot_axis == 'half':
-                ax.plot(images[0][shape[0]//2, :])
-            else:
-                assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
-                ax.plot(images[0][plot_axis, :])
-            ax.set_title('y:'+str(plot_axis)+' '+titles[0], fontsize = 12)
-        elif show_or_plot == 'both':
-            if plot_axis == 'half':
-                ax.twinx().plot(images[0][shape[0]//2, :])
-            else:
-                assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
-                ax.twinx().plot(images[0][plot_axis, :])
-            ax.set_title('y:'+str(plot_axis)+' '+titles[0], fontsize = 12)
-        else:
-            ax.set_title(titles[0], fontsize = 12)
-            ax.imshow(images[0], cmap = cmap)
-        
-        ax.axis(axis)
-        fig.colorbar(ax.imshow(images[0]), ax=ax)
-        plt.show()
-        return fig
-    if show_or_plot == 'show':    
-        [sns.heatmap(images[i*cols + j], cmap = cmap, ax = ax[i, j], robust=True) for i in range(rows) for j in range(cols)]
-        [ax[i, j].set_title(titles[i*cols + j], fontsize = 12) for i in range(rows) for j in range(cols)]
-    elif show_or_plot == 'plot':
-        if plot_axis == 'half':
-            [ax[i, j].plot(images[i*cols + j][shape[0]//2, :]) for i in range(rows) for j in range(cols)]
-        else:
-            assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
-            [ax[i, j].plot(images[i*cols + j][plot_axis, :]) for i in range(rows) for j in range(cols)]
-        [ax[i, j].set_title('y:'+str(plot_axis)+' '+titles[i*cols + j], fontsize = 12) for i in range(rows) for j in range(cols)]
-    elif show_or_plot == 'both':
-        [sns.heatmap(images[i*cols + j], cmap = cmap, ax = ax[i, j]) for i in range(rows) for j in range(cols)]
-        if plot_axis == 'half':
-            [ax[i, j].twinx().plot(images[i*cols + j][shape[0]//2, :]) for i in range(rows) for j in range(cols)]
-        else:
-            assert type(plot_axis) == int, "plot_axis is not 'half' or an integer"
-            [ax[i, j].twinx().plot(images[i*cols + j][plot_axis, :]) for i in range(rows) for j in range(cols)]
-        [ax[i,j].set_title('y:'+str(plot_axis)+' '+titles[i*cols + j], fontsize = 12) for i in range(rows) for j in range(cols) ]
-    else:
-        assert False, "show_or_plot is not 'show', 'plot' or 'both'"
-    [ax[i, j].axis(axis) for i in range(rows) for j in range(cols)]
-    plt.tight_layout()
-    fig.patch.set_facecolor('xkcd:light blue')
-    plt.show()
-    return fig
-
-def visualize_interact(pure = []):
-    import ipywidgets as widgets
-    from ipywidgets import interact
-    from IPython.display import display
-    interact(visualize, pure = widgets.fixed(pure), show_or_plot = widgets.Dropdown(options=['show', 'plot'], value='show', description='Show or plot:'), rows = widgets.IntSlider(min=1, max=10, step=1, value=1, description='Rows:'), cols = widgets.IntSlider(min=1, max=10, step=1, value=3, description='Columns:'))
-     
-def plot_pandas(df, column_range = None, x_column = None, titles = None):
-    """
-    this function plots the metadata dataframe
-    """
-    if column_range is None:
-        column_range = df.columns[2:-1]
-    elif column_range == 'all':
-        column_range = df.columns
-    elif type(column_range) is str:
-        column_range = [column_range]
-    elif type(column_range) is int:
-        column_range = df.columns[column_range:-1]
-    fig = plt.figure(figsize=(25,25))
-    min_vals = [df[column].min() for column in column_range], [df[column].idxmin() for column in column_range]
-    max_vals = [df[column].max() for column in column_range], [df[column].idxmax() for column in column_range]
-    if titles is None:
-        # titles = [column + '\nmin = ' + str(min_per_column[i])+' at ' + str(df[column].idxmin()) +'\n max = ' + str(df[column].max())+' at ' + str(df[column].idxmax()) for i, column in enumerate(column_range)]
-        titles = [column + '\nmin = ' + str(min_vals[0][i])+' at ' + str(min_vals[1][i]) +'\n max = ' + str(max_vals[0][i])+' at ' + str(max_vals[1][i]) for i, column in enumerate(column_range)]
-    for i, column in enumerate(column_range):
-        ax = fig.add_subplot(3, 3, i+1)
-        if x_column is None:
-            ax.plot(df[column])
-            ax.set_xlabel('iterations')
-            ax.set_ylabel(column)
-            ax.set_title(titles[i])
-        else:
-            ax.plot(df[x_column], df[column])
-            ax.set_xlabel(x_column)
-            ax.set_ylabel(column)
-            ax.set_title(titles[i])
-    #return the minimum of each column and the corresponding value of x_column and the index in 0, .. format
-    return min_vals, max_vals
-
-def plot_image(plots, idx = None, title = '', fig = None, ax = None):
-    if type(plots) is not list:
-            plots = [plots]
-    if idx is not None:
-        plots = [plots[i] for i in idx]
-    title = give_titles(plots, title)
-    if fig is None or ax is None:
-        fig = plt.figure(figsize=(20,10))
-        ax = fig.add_subplot(111)
-        [ax.plot(plots[i]) for i in range(len(plots))]
-        ax.set_title(title)
-        ax.legend(title)
-        plt.show()
-        return fig, ax
-    else:
-        [ax.plot(plots[i]) for i in range(len(plots))]
-        ax.set_title(title)
-        ax.legend(title)
-        plt.show()
-        return fig, ax
-

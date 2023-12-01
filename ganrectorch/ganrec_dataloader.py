@@ -451,14 +451,14 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
         else:
             from skimage.transform import resize
             
-        self.kwargs.update(get_all_info(**kwargs))
+        self.kwargs.update(prepare_dict(**kwargs))
         if 'phase' not in self.kwargs.keys() and 'attenuation' not in self.kwargs.keys():
             kwargs['phase'] = None
             kwargs['attenuation'] = None
         keys = self.kwargs.keys()
         [self.__setattr__(key, self.kwargs[key]) for key in keys]
         self.dims = (self.ND, self.shape_x, self.shape_y)
-        self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor'])
+        self.transformed_images = transform(self.image, self.kwargs['transform_type'], self.kwargs['transform_factor']).requires_grad_(True)
         self.kwargs['transform_type'] = self.transform_type
         self.kwargs['transform_factor'] = self.transform_factor
         self.kwargs['transformed_images'] = self.transformed_images
@@ -580,7 +580,7 @@ class Ganrec_Dataloader(torch.utils.data.Dataset):
             self.propagated_forward = torch.stack(propagated_forward, dim = 0)[:,0,:,:,:]
             print(self.propagated_forward.shape)
         return self.propagated_forward
-
+   
 class unet_Module(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding, depth, bias, batch_norm, activation, device = None):
         super(unet_Module, self).__init__()
