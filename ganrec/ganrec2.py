@@ -900,18 +900,20 @@ class GANdiffraction:
             #                                                                                                   ff)
             ###########################################################################
             # print(i_rec.shape)
-            plot_x.append(epoch)
-            plot_loss = gen_loss[:epoch + 1]
+            if self.recon_monitor:
+                plot_x.append(epoch)
+                plot_loss = gen_loss[:epoch + 1]
             if (epoch + 1) % 100 == 0:
                 # checkpoint.save(file_prefix=checkpoint_prefix)
-                if recon_monitor:
+                if self.recon_monitor:
                     i_rec = np.reshape(i_rec, (self.px, self.px))
                     i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
                     phase_plt = np.reshape(phase[epoch], (self.px, self.px))
                     recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
                 # print(phase.max(), phase.min())
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, gen_loss[epoch], d_loss.numpy()))
-        recon_monitor.close_plot()
+        if self.recon_monitor:
+            recon_monitor.close_plot()
         return absorption[epoch], phase[epoch]
         # return avg_results(recon, gen_loss)
 
@@ -950,19 +952,19 @@ def _get_GANphase_kwargs():
     }
     
 
-def _get_GANdiffraction_kwargs():
-    return{
-        'iter_num': 1000,
-        'conv_num': 32,
-        'conv_size': 3,
-        'dropout': 0.25,
-        'l1_ratio': 100,
-        'abs_ratio': 0.0,
-        'g_learning_rate': 1e-3,
-        'd_learning_rate': 1e-6,
-        'phase_only': True,
-        'save_wpath': None,
-        'init_wpath': None,
-        'init_model': False,
-        'recon_monitor': True,
-    }
+# def _get_GANdiffraction_kwargs():
+#     return{
+#         'iter_num': 1000,
+#         'conv_num': 32,
+#         'conv_size': 3,
+#         'dropout': 0.25,
+#         'l1_ratio': 100,
+#         'abs_ratio': 0.0,
+#         'g_learning_rate': 1e-3,
+#         'd_learning_rate': 1e-6,
+#         'phase_only': True,
+#         'save_wpath': None,
+#         'init_wpath': None,
+#         'init_model': False,
+#         'recon_monitor': True,
+#     }
