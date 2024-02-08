@@ -2,17 +2,22 @@ import time
 import os
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
+# import tomopy
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import tifffile
 from ganrec.ganrec2 import GANdiffraction
 
 
-fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin/'
-spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin_recon_20231220/'
+fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4/'
+spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_20240125_weight_all/'
 fname_mask = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/mask_crop_nor.tiff'
-iter_num = 1200
+iter_num = 200
 
 mask = tifffile.imread(fname_mask)
+
+recon_list = [105, 135, 173, 214, 244, 297, 307, 323, 355, 386, 435]
+
 def nor_diff(img):
  
     # img = np.log(img+2)
@@ -39,19 +44,82 @@ def list_files(directory):
     path = Path(directory)
     for file_path in path.rglob('*'):
         yield file_path
+
+def draw_mask(img, inner_diameter, outer_diameter):
+    image_size, _ = img.shape
+    x = np.linspace(-image_size // 2, image_size // 2, image_size)
+    y = np.linspace(-image_size // 2, image_size // 2, image_size)
+    X, Y = np.meshgrid(x, y)
+
+    # Calculate distances from the center
+    center = (0, 0)
+    distances = np.sqrt((X - center[0])**2 + (Y - center[1])**2)
+
+    # Create the mask
+    mask = (distances >= inner_diameter / 2) & (distances <= outer_diameter / 2)
+
+    # Apply the mask to an image (white ring on black background)
+    img = img*mask
+
+    return img
+    
+
 def main():
-    # for i, file_name in enumerate(list_files(fpath)):
-    for file_name in list_files(fpath):
+    for i in range(361):
+        file_name = fpath + str(796815+i) +'.tiff'
+        # file_name = fpath + str(796815+i)
         print("Reconstruction for " + str(file_name))
+        # if i-1 in recon_list or i in recon_list or i+1 in recon_list:
+            
         data = tifffile.imread(file_name)
+        data = draw_mask(data, 36, 220)
+            # save_tiff(data, '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test_tmp.tiff')
+            # plt.imshow(data)
+            # plt.show()
         px, _ = data.shape
         data = nor_diff(data)
-        gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=True)
+        gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=False, 
+                                         init_wpath= '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/weights/')
         start = time.time()
         abs, rec = gan_diff_object.recon
         end = time.time()
         print('Running time is {}'.format(end - start))
-        save_tiff(rec.reshape((px, px)), spath+str(file_name)[-6:]+'.tif')
+            # print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+        save_tiff(rec.reshape((px, px)), spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+
+   
+
+# def main():
+#     for i, file_name in enumerate(list_files(fpath)):
+#         if i<360:
+#         # if i-1 in recon_list or i in recon_list or i+1 in recon_list:
+#             print("Reconstruction for " + str(file_name))
+#             data = tifffile.imread(file_name)
+#             data = draw_mask(data, 40, 240)
+#             # save_tiff(data, '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test_tmp.tiff')
+#             # plt.imshow(data)
+#             # plt.show()
+#             px, _ = data.shape
+#             data = nor_diff(data)
+#             gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=True)
+#             start = time.time()
+#             abs, rec = gan_diff_object.recon
+#             end = time.time()
+#             print('Running time is {}'.format(end - start))
+#             # print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+#             save_tiff(rec.reshape((px, px)), spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+    # for file_name in list_files(fpath):
+    
+        
+        # data = tifffile.imread(file_name)
+        # px, _ = data.shape
+        # data = nor_diff(data)
+        # gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=True)
+        # start = time.time()
+        # abs, rec = gan_diff_object.recon
+        # end = time.time()
+        # print('Running time is {}'.format(end - start))
+        # save_tiff(rec.reshape((px, px)), spath+str(file_name)[:6]+'.tif')
         
     
     
