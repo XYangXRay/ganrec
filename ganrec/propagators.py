@@ -44,7 +44,7 @@ class PhaseFresnel:
 
 class PhaseFraunhofer:
     
-    def __init__(self, phase, absorption, shift_factor=20000):
+    def __init__(self, phase, absorption, shift_factor=15000):
         self.phase = phase
         self.absorption = absorption
         self.shift_factor = shift_factor

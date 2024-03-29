@@ -10,9 +10,10 @@ from ganrec.ganrec2 import GANdiffraction
 
 
 fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4/'
-spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_20240125_weight_all/'
+spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_20240208/'
+# spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208/'
 fname_mask = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/mask_crop_nor.tiff'
-iter_num = 200
+iter_num = 800
 
 mask = tifffile.imread(fname_mask)
 
@@ -63,15 +64,19 @@ def draw_mask(img, inner_diameter, outer_diameter):
 
     return img
     
+data_all = tifffile.imread('/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208.tif')
 
 def main():
     for i in range(361):
         file_name = fpath + str(796815+i) +'.tiff'
+        # file_name = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test_1.tif'
         # file_name = fpath + str(796815+i)
-        print("Reconstruction for " + str(file_name))
+        # print("Reconstruction for " + str(file_name))
         # if i-1 in recon_list or i in recon_list or i+1 in recon_list:
             
-        data = tifffile.imread(file_name)
+        # data = tifffile.imread(file_name)
+        # save_tiff(data, spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+        data = data_all[i]
         data = draw_mask(data, 36, 220)
             # save_tiff(data, '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test_tmp.tiff')
             # plt.imshow(data)
@@ -79,7 +84,7 @@ def main():
         px, _ = data.shape
         data = nor_diff(data)
         gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=False, 
-                                         init_wpath= '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/weights/')
+                                         save_wpath= '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/weights/')
         start = time.time()
         abs, rec = gan_diff_object.recon
         end = time.time()
@@ -87,7 +92,8 @@ def main():
             # print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
         save_tiff(rec.reshape((px, px)), spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
 
-   
+
+  
 
 # def main():
 #     for i, file_name in enumerate(list_files(fpath)):

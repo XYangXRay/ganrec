@@ -194,6 +194,8 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     ]
 
     last = conv2d_norm(output_num, 3, 1)
+    # diffraction test temp with down sampled output
+    # last = conv2d_norm(output_num, 3, 2)
 
     for fc in fc_stack:
         x = fc(x)

@@ -834,7 +834,11 @@ class GANdiffraction:
             phase = tfnor_diff(recon[:, :, :, 0])
             phase = tf.reshape(phase, [self.px, self.px])
             # add median filter to the result
+            # phase_tmp = tf.zeros_like(phase)
+
+            
             # phase = tfa.image.median_filter2d(phase)
+            # phase = tfa.image.gaussian_filter2d(phase)
             
             
             absorption = (1 - tfnor_diff(recon[:, :, :, 1]))* self.abs_ratio
