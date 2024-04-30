@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 
 from ganrec.propagators import TomoRadon, PhaseFresnel, PhaseFraunhofer
-from ganrec.models import make_generator, make_generator_fno, make_discriminator, make_filter
+from ganrec.models import make_generator, make_generator_diff, make_generator_fno, make_discriminator, make_filter
 from ganrec.utils import RECONmonitor, ffactor
 
 
@@ -806,7 +806,7 @@ class GANdiffraction:
     def make_model(self):
         self.filter = make_filter(self.i_input.shape[0],
                                   self.i_input.shape[1])
-        self.generator = make_generator(self.i_input.shape[0],
+        self.generator = make_generator_diff(self.i_input.shape[0],
                                         self.i_input.shape[1],
                                         self.conv_num,
                                         self.conv_size,
@@ -825,16 +825,30 @@ class GANdiffraction:
                                          discriminator_optimizer=self.discriminator_optimizer,
                                          generator=self.generator,
                                          discriminator=self.discriminator)
+    # def mask_outside_area(self, top, bottom, left, right):
+    #     # Create a mask with the same shape as phase
+    #     mask = tf.fill([1, self.ifp.shape[1], self.ifp.shape[2], 1], 0)
 
+    #     # Set the specific area in the mask to 1
+    #     mask = mask[0, top:bottom, left:right, :].assign(1)
+
+    #     # Apply the mask to ifp
+    #     self.ifp = tf.where(mask == 1, self.ifp, mask)
     @tf.function
     def rec_step(self, i_input):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             recon = self.generator(i_input)
             # recon = tfa.image.median_filter2d(recon)
             phase = tfnor_diff(recon[:, :, :, 0])
-            phase = tf.reshape(phase, [self.px, self.px])
+            phase = tf.reshape(phase, [self.px//2, self.px//2])
             # add median filter to the result
-            # phase_tmp = tf.zeros_like(phase)
+            # phase_mask = tf.zeros_like(phase)
+            
+            # phase_mask = tf.ones([128, 128])
+            # phase_mask = tf.pad(phase_mask, [[64, 64], [64, 64]])
+            # phase = tf.multiply(phase, phase_mask)
+            phase = tf.pad(phase, [[64, 64], [64, 64]])
+ 
 
             
             # phase = tfa.image.median_filter2d(phase)
@@ -842,7 +856,8 @@ class GANdiffraction:
             
             
             absorption = (1 - tfnor_diff(recon[:, :, :, 1]))* self.abs_ratio
-            absorption = tf.reshape(absorption, [self.px, self.px])
+            absorption = tf.reshape(absorption, [self.px//2, self.px//2])
+            absorption = tf.pad(absorption, [[64, 64], [64, 64]])
             if self.phase_only:
                 absorption = tf.zeros_like(phase)
             

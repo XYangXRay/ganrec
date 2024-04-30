@@ -10,12 +10,13 @@ from ganrec.ganrec2 import GANdiffraction
 
 
 fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4/'
-spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_20240208/'
+spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_pad_20240416/'
+spath1 = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_avg20_20240415/'
 # spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208/'
 fname_mask = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/mask_crop_nor.tiff'
-iter_num = 800
+iter_num = 1200
 
-mask = tifffile.imread(fname_mask)
+# mask = tifffile.imread(fname_mask)
 
 recon_list = [105, 135, 173, 214, 244, 297, 307, 323, 355, 386, 435]
 
@@ -63,7 +64,28 @@ def draw_mask(img, inner_diameter, outer_diameter):
     img = img*mask
 
     return img
-    
+
+def make_mask(image_size, inner_diameter, outer_diameter):
+    # image_size, _ = img.shape
+    x = np.linspace(-image_size // 2, image_size // 2, image_size)
+    y = np.linspace(-image_size // 2, image_size // 2, image_size)
+    X, Y = np.meshgrid(x, y)
+
+    # Calculate distances from the center
+    center = (0, 0)
+    distances = np.sqrt((X - center[0])**2 + (Y - center[1])**2)
+
+    # Create the mask
+    mask = (distances >= inner_diameter / 2) & (distances <= outer_diameter / 2)
+
+    # Apply the mask to an image (white ring on black background)
+    mask = np.ones((image_size, image_size))*mask
+    # img = img*mask
+
+    return np.float32(mask)
+
+mask = make_mask(256, 36, 220) 
+print(mask.dtype)
 data_all = tifffile.imread('/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208.tif')
 
 def main():
@@ -83,6 +105,7 @@ def main():
             # plt.show()
         px, _ = data.shape
         data = nor_diff(data)
+        
         gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=False, 
                                          save_wpath= '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/weights/')
         start = time.time()
@@ -91,8 +114,28 @@ def main():
         print('Running time is {}'.format(end - start))
             # print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
         save_tiff(rec.reshape((px, px)), spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+# avg_num = 20
+# def main():
+#     for i in range(361):
+#         file_name = fpath + str(796815+i) +'.tiff'
 
+#         data = data_all[i]
+#         data = draw_mask(data, 36, 220)
 
+#         px, _ = data.shape
+#         data = nor_diff(data)
+#         start = time.time()
+#         rec = np.zeros((avg_num, px, px))
+#         for m in range(avg_num):
+#             gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=False, 
+#                                          save_wpath= '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/weights/')
+#             abs, rec_tmp = gan_diff_object.recon
+#             rec[m, :, :] = rec_tmp.reshape((px, px))
+#         end = time.time()
+#         print('Running time is {}'.format(end - start))
+#             # print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+#         save_tiff(rec, spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+#         save_tiff(np.mean(rec, axis=0), spath1+os.path.splitext(file_name)[0][-6:]+'.tiff')
   
 
 # def main():
