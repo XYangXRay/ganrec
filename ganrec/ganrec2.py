@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 
 from ganrec.propagators import TomoRadon, PhaseFresnel, PhaseFraunhofer
-from ganrec.models import make_generator, make_generator_diff, make_generator_fno, make_discriminator, make_filter
+from ganrec.models import make_generator, make_generator_diff, make_generator_fno, make_discriminator, make_filter, diffusion_model
 from ganrec.utils import RECONmonitor, ffactor
 
 
@@ -371,7 +371,14 @@ class GANtomo:
                                         self.conv_num,
                                         self.conv_size,
                                         self.dropout,
-                                        1)       
+                                        1)
+        
+        # self.generator = diffusion_model(self.prj_input.shape[1],
+        #                                 self.prj_input.shape[1],
+        #                                 self.conv_num,
+        #                                 self.conv_size,
+        #                                 self.dropout,
+        #                                 1)           
         self.discriminator = make_discriminator(self.prj_input.shape[0],
                                                 self.prj_input.shape[1])
         self.filter_optimizer = tf.keras.optimizers.Adam(5e-5)
@@ -429,7 +436,8 @@ class GANtomo:
       
         prj = tf.cast(prj, dtype=tf.float32)
         prj = self.tfnor_tomo(prj)
-        
+        #test for the random noise input
+        # recon_noise = tf.random.normal((px, px, 1))
         ang = tf.cast(self.angle, dtype=tf.float32)
         self.make_model()
         if self.init_wpath:
@@ -452,6 +460,8 @@ class GANtomo:
             ## Call the rconstruction step
 
             # recon[epoch, :, :, :], prj_rec, gen_loss[epoch], d_loss = self.recon_step(prj, ang)
+            # step_result = self.recon_step(prj, ang)
+            
             step_result = self.recon_step(prj, ang)
             # step_result = self.recon_step(prj, ang)
             # step_result = self.recon_step_filter(prj, ang)

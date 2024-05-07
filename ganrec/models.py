@@ -504,8 +504,8 @@ def block(x_img, x_ts):
     
     return x_out
 
-def diffusion_model():
-    x = x_input = Input(shape=(IMG_SIZE, IMG_SIZE, 3), name='x_input')
+def diffusion_model(img_h, img_w, conv_num, conv_size, dropout, output_num):
+    x = x_input = Input(shape=(img_h, img_w, 1), name='x_input')
     
     x_ts = x_ts_input = Input(shape=(1,), name='x_ts_input')
     x_ts = Dense(192)(x_ts)
@@ -513,14 +513,17 @@ def diffusion_model():
     x_ts = Activation('relu')(x_ts)
     
     # ----- left ( down ) -----
+    print(f'Input shape: {x.shape}')
     x = x32 = block(x, x_ts)
-    x = MaxPool2D(2)(x)
-    
+    x = MaxPool2D(2, padding = 'same')(x)
+    print(f'x32 shape: {x.shape}')
     x = x16 = block(x, x_ts)
-    x = MaxPool2D(2)(x)
-    
+    print(f'x16 shape: {x.shape}')
+    x = MaxPool2D(2, padding = 'same')(x)
+    print(f'x8 shape: {x.shape}')
     x = x8 = block(x, x_ts)
-    x = MaxPool2D(2)(x)
+    print(f'x8 shape: {x.shape}')
+    x = MaxPool2D(2, padding = 'same')(x)
     
     x = x4 = block(x, x_ts)
     
@@ -531,16 +534,19 @@ def diffusion_model():
     x = LayerNormalization()(x)
     x = Activation('relu')(x)
 
-    x = Dense(4 * 4 * 32)(x)
+    x = Dense((img_h//8) * (img_w//8) * 32)(x)
     x = LayerNormalization()(x)
     x = Activation('relu')(x)
-    x = Reshape((4, 4, 32))(x)
+    x = Reshape((img_h//8, img_w//8, 32))(x)
+    print(f'x4 shape: {x.shape}')
     
     # ----- right ( up ) -----
     x = Concatenate()([x, x4])
+    print(f'x4 shape: {x.shape}')
     x = block(x, x_ts)
-    x = UpSampling2D(2)(x)
     
+    x = UpSampling2D(2)(x)
+    print(f'x8 shape: {x.shape}')
     x = Concatenate()([x, x8])
     x = block(x, x_ts)
     x = UpSampling2D(2)(x)
