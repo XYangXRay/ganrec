@@ -13,7 +13,7 @@ class TomoRadon:
         img = tf.tile(img, [nang, 1, 1, 1])
         img = tfa.image.rotate(img, -self.ang, interpolation='bilinear')
         sino = tf.reduce_mean(img, 1, name=None)
-        sino = tf.image.per_image_standardization(sino)
+        # sino = tf.image.per_image_standardization(sino)
         sino = tf.transpose(sino, [2, 0, 1])
         sino = tf.reshape(sino, [sino.shape[0], sino.shape[1], sino.shape[2], 1])
         return sino
