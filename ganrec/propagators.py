@@ -21,33 +21,51 @@ class TomoRadon:
 
 class TensorRadon:
 
-    def __init__(self, strain_tensor, ang, psi):
-        self.rec = strain_tensor
+    def __init__(self, rec, ang, psi):
+        self.strain_tensor = rec
         self.ang = ang
         self.psi = psi
 
     def compute(self):
-        detector_rows = self.strain_tensor.shape[1]
-        detector_columns = self.strain_tensor.shape[2]
-        vol_mask = tf.zeros((detector_rows, detector_columns, detector_columns))
-        vol_mask = tf.reduce_sum(tf.abs(strain_tensor), axis=0) > 0.0
-        vol_mask = tf.reshape(vol_mask, (-1, detector_columns, detector_columns, 1))
-        vol_mask = tf.cast(vol_mask, dtype=tf.float32)
+        detector_rows = self.strain_tensor.shape[0]
+        detector_columns = self.strain_tensor.shape[1]
         strain_tensor = tf.cast(self.strain_tensor, dtype=tf.float32)
+        # print(strain_tensor.shape, strain_tensor.dtype)
+        vol_mask = tf.zeros((detector_rows, detector_columns, detector_columns))
+        # print(f'vol_mask shape is {vol_mask.shape}')
+        vol_mask = tf.reduce_sum(tf.abs(strain_tensor), axis=3) > 0.0
+        # print(f'vol_mask shape is {vol_mask.shape}')
+        vol_mask = tf.reshape(vol_mask, (-1, detector_columns, detector_columns, 1))
+        # print(f'vol_mask shape is {vol_mask.shape}')
+        vol_mask = tf.cast(vol_mask, dtype=tf.float32)
+        # print(f'vol_mask shape is {vol_mask.shape}')
+        # strain_tensor = tf.cast(self.strain_tensor, dtype=tf.float32)
         angles = tf.cast(self.ang, dtype=tf.float32)
         thickness = TomoRadon(vol_mask, angles).compute()
+        # print(f'thickness shape is {thickness.shape}')
         thickness = tf.squeeze(thickness)
-        strain_tensor = tf.transpose(strain_tensor, [0, 2, 3, 1])
+        
+        strain_tensor = tf.transpose(strain_tensor, [3, 1, 2, 0])
         proj_strain_comp = TomoRadon(strain_tensor, angles).compute()
         proj_strain_comp = tf.squeeze(proj_strain_comp)
-        proj_strain_ws = tf.multiply(proj_strain_comp[0], tf.expand_dims(tf.pow(tf.cos(angles), 2) * tf.pow(tf.sin(self.psi), 2), 1)) + \
-            tf.multiply(proj_strain_comp[1], tf.expand_dims(tf.pow(tf.sin(angles), 2) * tf.pow(tf.sin(self.psi), 2), 1)) + \
-                tf.multiply(proj_strain_comp[2], tf.pow(tf.cos(self.psi), 2), 1) + \
-                    tf.multiply(proj_strain_comp[3], tf.expand_dims(tf.sin(2 * angles) * tf.pow(tf.sin(self.psi), 2), 1)) + \
-                        tf.multiply(proj_strain_comp[4], tf.expand_dims(tf.sin(angles) * tf.sin(2 * self.psi), 1)) + \
-                            tf.multiply(proj_strain_comp[5], tf.expand_dims(tf.cos(angles) * tf.sin(2 * self.psi), 1))
-        strain_sino = tf.math.divide_no_nan(proj_strain_ws, thickness)
-        return strain_sino    
+        cos_squared = tf.expand_dims(tf.pow(tf.cos(angles), 2), 1)
+        sin_squared = tf.expand_dims(tf.pow(tf.sin(angles), 2), 1)
+        cos_psi_squared = tf.pow(tf.cos(self.psi), 2)
+        sin_psi_squared = tf.pow(tf.sin(self.psi), 2)
+        sin_2angles = tf.expand_dims(tf.sin(2 * angles), 1)
+        sin_angles_sin_2psi = tf.expand_dims(tf.sin(angles) * tf.sin(2 * self.psi), 1)
+        cos_angles_sin_2psi = tf.expand_dims(tf.cos(angles) * tf.sin(2 * self.psi), 1)
+        proj_strain_ws = (tf.multiply(proj_strain_comp[0], cos_squared * sin_psi_squared) + 
+                          tf.multiply(proj_strain_comp[1], sin_squared * sin_psi_squared) +
+                          tf.multiply(proj_strain_comp[2], cos_psi_squared) +
+                          tf.multiply(proj_strain_comp[3], sin_2angles * sin_psi_squared) +
+                          tf.multiply(proj_strain_comp[4], sin_angles_sin_2psi) +
+                          tf.multiply(proj_strain_comp[5], cos_angles_sin_2psi))
+        # print(f'thickness shape is {thickness.shape}')
+        # print(f'proj_strain_ws shape is {proj_strain_ws.shape}')
+        tensor_sino = tf.math.divide_no_nan(proj_strain_ws, thickness) 
+        tensor_sino = tf.reshape(tensor_sino, [1, tensor_sino.shape[0], tensor_sino.shape[1], 1])
+        return tensor_sino
     
 class PhaseFresnel:
     

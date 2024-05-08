@@ -12,6 +12,20 @@
         "init_model": false,
         "recon_monitor": true
     },
+
+    "GANtensor": {
+        "iter_num": 1000,
+        "conv_num": 32,
+        "conv_size": 3,
+        "dropout": 0.25,
+        "l1_ratio": 10,
+        "g_learning_rate": 1e-2,
+        "d_learning_rate": 1e-7,
+        "save_wpath": null,
+        "init_wpath": null,
+        "init_model": false,
+        "recon_monitor": true
+    },
     "GANphase": {
         "iter_num": 1000,
         "conv_num": 32,

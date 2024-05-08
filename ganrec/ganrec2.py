@@ -577,7 +577,7 @@ class GANtensor:
             self.generator.load_weights(self.init_wpath+'generator.h5')
             print('generator is initilized')
             self.discriminator.load_weights(self.init_wpath+'discriminator.h5')
-        recon = np.zeros((self.iter_num, px, px, 1))
+        recon = np.zeros((self.iter_num, px, px, 6))
         gen_loss = np.zeros((self.iter_num))
 
         ###########################################################################
@@ -602,7 +602,7 @@ class GANtensor:
                 if recon_monitor:
                     prj_rec = np.reshape(step_result['prj_rec'], (nang, px))
                     prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
-                    rec_plt = np.reshape(recon[epoch], (px, px))
+                    rec_plt = np.reshape(recon[epoch,:,:,0], (px, px))
                     recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
@@ -612,7 +612,10 @@ class GANtensor:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
         recon_monitor.close_plot()
-        return recon[epoch]
+        recon_out = np.transpose(recon[epoch], axes= (2, 0, 1))
+       
+        
+        return recon_out.astype(np.float32)
       
 
 
