@@ -8,7 +8,7 @@ from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
 from tensorflow.keras.initializers import glorot_uniform
 from tensorflow.signal import fft, fft2d, ifft, ifft2d, rfft, irfft, rfft2d, irfft2d
 
-def dense_norm(units, dropout, apply_batchnorm=True):
+def dense_norm(units, dropout, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
@@ -20,14 +20,15 @@ def dense_norm(units, dropout, apply_batchnorm=True):
     result.add(Dropout(dropout))
 
     if apply_batchnorm:
-        result.add(BatchNormalization())
+        # result.add(BatchNormalization())
+        result.add(LayerNormalization())
 
     result.add(LeakyReLU())
 
     return result
 
 
-def conv2d_norm(filters, size, strides, apply_batchnorm=True):
+def conv2d_norm(filters, size, strides, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
@@ -40,7 +41,8 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=True):
                use_bias=False))
 
     if apply_batchnorm:
-        result.add(BatchNormalization())
+        # result.add(BatchNormalization())
+        result.add(LayerNormalization())
 
     result.add(LeakyReLU())
 
@@ -59,7 +61,7 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
                         kernel_initializer=initializer,
                         use_bias=False))
 
-    result.add(BatchNormalization())
+    # result.add(LayerNormalization())
 
     if apply_dropout:
         result.add(Dropout(0.25))
@@ -462,27 +464,32 @@ def make_discriminator(nang, px):
     model.add(Conv2D(16, (5, 5), strides=(2, 2), padding='same',
                             input_shape=[nang, px, 1]))
     model.add(Conv2D(16, (5, 5), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(32, (5, 5), strides=(2, 2), padding='same'))
     model.add(Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
     model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
-    model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
-    model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    model.add(Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
+    model.add(Conv2D(128, (3, 3), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Flatten())
     model.add(Dense(256))
-    model.add(Dense(1))
+    # model.add(LayerNormalization())
+    model.add(Dense(128))
 
     return model
 

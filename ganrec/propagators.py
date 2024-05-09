@@ -34,21 +34,13 @@ class TensorRadon:
         detector_rows = self.strain_tensor.shape[0]
         detector_columns = self.strain_tensor.shape[1]
         strain_tensor = tf.cast(self.strain_tensor, dtype=tf.float32)
-        # print(strain_tensor.shape, strain_tensor.dtype)
         vol_mask = tf.zeros((detector_rows, detector_columns, detector_columns))
-        # print(f'vol_mask shape is {vol_mask.shape}')
         vol_mask = tf.reduce_sum(tf.abs(strain_tensor), axis=3) > 0.0
-        # print(f'vol_mask shape is {vol_mask.shape}')
         vol_mask = tf.reshape(vol_mask, (-1, detector_columns, detector_columns, 1))
-        # print(f'vol_mask shape is {vol_mask.shape}')
         vol_mask = tf.cast(vol_mask, dtype=tf.float32)
-        # print(f'vol_mask shape is {vol_mask.shape}')
-        # strain_tensor = tf.cast(self.strain_tensor, dtype=tf.float32)
         angles = tf.cast(self.ang, dtype=tf.float32)
         thickness = TomoRadon(vol_mask, angles).compute()
-        # print(f'thickness shape is {thickness.shape}')
-        thickness = tf.squeeze(thickness)
-        
+        thickness = tf.squeeze(thickness)  
         strain_tensor = tf.transpose(strain_tensor, [3, 1, 2, 0])
         proj_strain_comp = TomoRadon(strain_tensor, angles).compute()
         proj_strain_comp = tf.squeeze(proj_strain_comp)
