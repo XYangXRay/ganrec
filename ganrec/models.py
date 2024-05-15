@@ -2,13 +2,13 @@ from pickle import TRUE
 import tensorflow as tf
 from tensorflow.keras import Sequential, Input, Model
 from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
-    Flatten, concatenate, \
-        BatchNormalization, Dropout, \
+    Flatten, concatenate, LayerNormalization, MaxPool2D, Concatenate, \
+        BatchNormalization, Dropout, UpSampling2D, Reshape, \
             ReLU,LeakyReLU, Activation, Add
 from tensorflow.keras.initializers import glorot_uniform
 from tensorflow.signal import fft, fft2d, ifft, ifft2d, rfft, irfft, rfft2d, irfft2d
 
-def dense_norm(units, dropout, apply_batchnorm=True):
+def dense_norm(units, dropout, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
@@ -20,14 +20,15 @@ def dense_norm(units, dropout, apply_batchnorm=True):
     result.add(Dropout(dropout))
 
     if apply_batchnorm:
-        result.add(BatchNormalization())
+        # result.add(BatchNormalization())
+        result.add(LayerNormalization())
 
     result.add(LeakyReLU())
 
     return result
 
 
-def conv2d_norm(filters, size, strides, apply_batchnorm=True):
+def conv2d_norm(filters, size, strides, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
@@ -40,7 +41,8 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=True):
                use_bias=False))
 
     if apply_batchnorm:
-        result.add(BatchNormalization())
+        # result.add(BatchNormalization())
+        result.add(LayerNormalization())
 
     result.add(LeakyReLU())
 
@@ -59,7 +61,7 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
                         kernel_initializer=initializer,
                         use_bias=False))
 
-    result.add(BatchNormalization())
+    # result.add(LayerNormalization())
 
     if apply_dropout:
         result.add(Dropout(0.25))
@@ -194,11 +196,55 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     ]
 
     last = conv2d_norm(output_num, 3, 1)
+    # diffraction test temp with down sampled output
+    # last = conv2d_norm(output_num, 3, 2)
 
     for fc in fc_stack:
         x = fc(x)
 
     x = tf.reshape(x, shape=[-1, img_w, img_w, 1])
+    # Convolutions
+    for conv in conv_stack:
+        x = conv(x)
+
+    for dconv in dconv_stack:
+        x = dconv(x)
+    x = last(x)
+    return Model(inputs=inputs, outputs=x)
+
+def make_generator_diff(img_h, img_w, conv_num, conv_size, dropout, output_num):
+    units = 128
+    fc_size = (img_w//2) ** 2
+    inputs = Input(shape=(img_h, img_w, 1))
+    x = Flatten()(inputs)
+    fc_stack = [
+        dense_norm(units, dropout),
+        dense_norm(units, dropout),
+        dense_norm(units, dropout),
+        dense_norm(fc_size, 0),
+    ]
+
+    conv_stack = [
+        conv2d_norm(conv_num, conv_size+2, 1),
+        conv2d_norm(conv_num, conv_size+2, 1),
+        conv2d_norm(conv_num, conv_size, 1),
+
+    ]
+
+    dconv_stack = [
+        dconv2d_norm(conv_num, conv_size+2, 1),
+        dconv2d_norm(conv_num, conv_size+2, 1),
+        dconv2d_norm(conv_num, conv_size, 1),
+    ]
+
+    last = conv2d_norm(output_num, 3, 1)
+    # diffraction test temp with down sampled output
+    # last = conv2d_norm(output_num, 3, 2)
+
+    for fc in fc_stack:
+        x = fc(x)
+
+    x = tf.reshape(x, shape=[-1, img_w//2, img_w//2, 1])
     # Convolutions
     for conv in conv_stack:
         x = conv(x)
@@ -418,26 +464,108 @@ def make_discriminator(nang, px):
     model.add(Conv2D(16, (5, 5), strides=(2, 2), padding='same',
                             input_shape=[nang, px, 1]))
     model.add(Conv2D(16, (5, 5), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(32, (5, 5), strides=(2, 2), padding='same'))
     model.add(Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
     model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
-    model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
-    model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    model.add(Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
+    model.add(Conv2D(128, (3, 3), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Flatten())
     model.add(Dense(256))
-    model.add(Dense(1))
+    # model.add(LayerNormalization())
+    model.add(Dense(128))
 
+    return model
+
+
+def block(x_img, x_ts):
+    x_parameter = Conv2D(128, kernel_size=3, padding='same')(x_img)
+    x_parameter = Activation('relu')(x_parameter)
+
+    time_parameter = Dense(128)(x_ts)
+    time_parameter = Activation('relu')(time_parameter)
+    time_parameter = Reshape((1, 1, 128))(time_parameter)
+    x_parameter = x_parameter * time_parameter
+    
+    # -----
+    x_out = Conv2D(128, kernel_size=3, padding='same')(x_img)
+    x_out = x_out + x_parameter
+    x_out = LayerNormalization()(x_out)
+    x_out = Activation('relu')(x_out)
+    
+    return x_out
+
+def diffusion_model(img_h, img_w, conv_num, conv_size, dropout, output_num):
+    x = x_input = Input(shape=(img_h, img_w, 1), name='x_input')
+    
+    x_ts = x_ts_input = Input(shape=(1,), name='x_ts_input')
+    x_ts = Dense(192)(x_ts)
+    x_ts = LayerNormalization()(x_ts)
+    x_ts = Activation('relu')(x_ts)
+    
+    # ----- left ( down ) -----
+    print(f'Input shape: {x.shape}')
+    x = x32 = block(x, x_ts)
+    x = MaxPool2D(2, padding = 'same')(x)
+    print(f'x32 shape: {x.shape}')
+    x = x16 = block(x, x_ts)
+    print(f'x16 shape: {x.shape}')
+    x = MaxPool2D(2, padding = 'same')(x)
+    print(f'x8 shape: {x.shape}')
+    x = x8 = block(x, x_ts)
+    print(f'x8 shape: {x.shape}')
+    x = MaxPool2D(2, padding = 'same')(x)
+    
+    x = x4 = block(x, x_ts)
+    
+    # ----- MLP -----
+    x = Flatten()(x)
+    x = Concatenate()([x, x_ts])
+    x = Dense(128)(x)
+    x = LayerNormalization()(x)
+    x = Activation('relu')(x)
+
+    x = Dense((img_h//8) * (img_w//8) * 32)(x)
+    x = LayerNormalization()(x)
+    x = Activation('relu')(x)
+    x = Reshape((img_h//8, img_w//8, 32))(x)
+    print(f'x4 shape: {x.shape}')
+    
+    # ----- right ( up ) -----
+    x = Concatenate()([x, x4])
+    print(f'x4 shape: {x.shape}')
+    x = block(x, x_ts)
+    
+    x = UpSampling2D(2)(x)
+    print(f'x8 shape: {x.shape}')
+    x = Concatenate()([x, x8])
+    x = block(x, x_ts)
+    x = UpSampling2D(2)(x)
+    
+    x = Concatenate()([x, x16])
+    x = block(x, x_ts)
+    x = UpSampling2D(2)(x)
+    
+    x = Concatenate()([x, x32])
+    x = block(x, x_ts)
+    
+    # ----- output -----
+    x = Conv2D(3, kernel_size=1, padding='same')(x)
+    model = tf.keras.models.Model([x_input, x_ts_input], x)
     return model

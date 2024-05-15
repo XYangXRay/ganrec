@@ -6,13 +6,15 @@ from ganrec.ganrec2 import GANphase
 
 def main():
     energy = 12
+    # z = 2.9878e-2
+    # z = 1.057
     z = 2.9878e-2
-    # z = 2.9878e-2/2
-    pv =5.52e-6/36.5
-    # pv = 1e-6
+    pv=3.88e-8
+    # pv =5.52e-6/36.5
+    pv = 1.38e-6
     iter_num = 1400
     # abs_ratio = 0.06
-    fname_data = '/data/phase_yang/dist3-1.tif'
+    fname_data = '/nsls2/data/staff/xyang4/data/phase_yang/dist3-1.tif'
     data = dxchange.read_tiff(fname_data)
     px, px= data.shape
     data = nor_phase(data)
@@ -34,7 +36,7 @@ def main():
     #                     overwrite=True)
         
     gan_phase_object = GANphase(data, energy, z, pv, 
-                                    abs_ratio = 0.5, 
+                                    abs_ratio = 0.1, 
                                     iter_num = iter_num,
                                     phase_only=False)
     start = time.time()
@@ -42,11 +44,13 @@ def main():
     end = time.time()
     print('Running time is {}'.format(end - start))
     dxchange.write_tiff(absorption.reshape((px, px)), 
-                        '/data/phase_yang/absorption_', 
+                        '/nsls2/data/staff/xyang4/data/phase_yang/absorption_', 
                         overwrite=True)
     dxchange.write_tiff(phase.reshape((px, px)), 
-                        '/data/phase_yang/phase_', 
+                        '/nsls2/data/staff/xyang4/data/phase_yang/phase_', 
                         overwrite=True)
+    # for i in range(20):
+        
 
 if __name__ == "__main__":
     main()
