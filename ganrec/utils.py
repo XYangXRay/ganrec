@@ -1,5 +1,7 @@
+import os
 import numpy as np
 from numpy.fft import fftfreq
+import tifffile
 import matplotlib.pyplot as plt
 
 
@@ -103,3 +105,34 @@ class RECONmonitor:
         plt.pause(0.1)
     def close_plot(self):
         plt.close()
+
+# Draw a annular shape mask to only inlcude the feature in the annular area
+def annular_mask(img, inner_diameter, outer_diameter):
+    image_size, _ = img.shape
+    x = np.linspace(-image_size // 2, image_size // 2, image_size)
+    y = np.linspace(-image_size // 2, image_size // 2, image_size)
+    X, Y = np.meshgrid(x, y)
+
+    # Calculate distances from the center
+    center = (0, 0)
+    distances = np.sqrt((X - center[0])**2 + (Y - center[1])**2)
+
+    # Create the mask
+    mask = (distances >= inner_diameter / 2) & (distances <= outer_diameter / 2)
+
+    # Apply the mask to an image (white ring on black background)
+    img = img*mask
+
+    return img
+
+def save_tiff(image, filename):
+    # Extract the directory from the filename
+    directory = os.path.dirname(filename)
+
+    # Check if the directory exists, and create it if it doesn't
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    image = nor_tomo(image)
+    image = np.array(image, dtype = np.float32)
+    # Save the image
+    tifffile.imwrite(filename, image)

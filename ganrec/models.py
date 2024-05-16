@@ -1,33 +1,32 @@
 from pickle import TRUE
-import tensorflow as tf
-from tensorflow.keras import Sequential, Input, Model
-from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
-    Flatten, concatenate, \
-        BatchNormalization, Dropout, \
-            ReLU,LeakyReLU, Activation, Add
-from tensorflow.keras.initializers import glorot_uniform
-from tensorflow.signal import fft, fft2d, ifft, ifft2d, rfft, irfft, rfft2d, irfft2d
 
-def dense_norm(units, dropout, apply_batchnorm=True):
+import tensorflow as tf
+from tensorflow.keras import Input, Model, Sequential
+from tensorflow.keras.initializers import glorot_uniform
+from tensorflow.keras.layers import (Activation, Add, BatchNormalization, Conv2D,
+                                     Conv2DTranspose, Dense, Dropout, Flatten,
+                                     LayerNormalization, LeakyReLU, MaxPool2D, Reshape,
+                                     UpSampling2D, concatenate)
+from tensorflow.signal import irfft2d, rfft2d
+
+
+def dense_norm(units, dropout, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
     result.add(
         Dense(units, 
-            #   activation=tf.nn.tanh, 
               use_bias=True, 
               kernel_initializer=initializer))
     result.add(Dropout(dropout))
-
     if apply_batchnorm:
-        result.add(BatchNormalization())
-
+        result.add(LayerNormalization())
     result.add(LeakyReLU())
 
     return result
 
 
-def conv2d_norm(filters, size, strides, apply_batchnorm=True):
+def conv2d_norm(filters, size, strides, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
@@ -40,7 +39,7 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=True):
                use_bias=False))
 
     if apply_batchnorm:
-        result.add(BatchNormalization())
+        result.add(LayerNormalization())
 
     result.add(LeakyReLU())
 
@@ -58,86 +57,11 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
                         padding='same',
                         kernel_initializer=initializer,
                         use_bias=False))
-
-    result.add(BatchNormalization())
-
     if apply_dropout:
         result.add(Dropout(0.25))
-
     result.add(LeakyReLU())
-
     return result
 
-
-# Define the residual block as a new layer
-class Res_dense(Layer):
-    def __init__(self, units, dropout,**kwargs):
-        super(Res_dense, self).__init__(**kwargs)
-        self.units = units
-        self.dropout = dropout
-
-    def call(self, x):
-        # the residual block using Keras functional API
-        first_layer = Activation("linear", trainable=False)(x)
-        x = Dense(self.units, 
-                  activation=tf.nn.tanh, 
-                  use_bias=True)(first_layer)
-        x = Dense(self.units, 
-                  activation=tf.nn.tanh, 
-                  use_bias=True)(x)
-        residual = Add()([x, first_layer])
-        x = Activation(tf.nn.tanh)(residual)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-
-class Res_conv(Layer):
-    def __init__(self, filters, size,**kwargs):
-        super(Res_conv, self).__init__(**kwargs)
-        self.filters = filters
-        self.size = size
-
-    def call(self, x):
-        # the residual block using Keras functional API
-        first_layer = Activation("linear", trainable=False)(x)
-        x = Conv2D(self.filters,
-                   self.size,
-                   padding="same")(first_layer)
-        x = Activation("relu")(x)
-        x = Conv2D(self.filters,
-                   self.size,
-                   padding="same")(x)
-        residual = Add()([x, first_layer])
-        x = Activation("relu")(residual)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-    
-class Res_dconv(Layer):
-    def __init__(self, filters, size,**kwargs):
-        super(Res_dconv, self).__init__(**kwargs)
-        self.filters = filters
-        self.size = size
-
-    def call(self, x):
-        # the residual block using Keras functional API
-        first_layer = Activation("linear", trainable=False)(x)
-        x = Conv2DTranspose(self.filters,
-                            self.size,
-                            padding="same")(first_layer)
-        x = Activation("relu")(x)
-        x = Conv2DTranspose(self.filters,
-                            self.size,
-                            padding="same")(x)
-        residual = Add()([x, first_layer])
-        x = Activation("relu")(residual)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
 
 def dense_res(x, filters, size):
     x = Conv2D(filters, size, padding='same')(x)
@@ -159,15 +83,7 @@ def conv_res(x, filters, size):
     out = BatchNormalization()(out)
     return out
 
-
-
-def make_generator_rb(img_h, img_w, conv_num, conv_size, dropout, output_num):
-    units = 128
-    fc_size = img_w ** 2
-    inputs = Input(shape=(img_h, img_w, 1))
-    x = tf.keras.layers.Flatten()(inputs)
     
-
 def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
     fc_size = img_w ** 2
@@ -360,84 +276,114 @@ def make_generator_fno(img_h, img_w, conv_num, conv_size, dropout, output_num):
     
     return model
 
-def make_filter(img_h, img_w):
-    inputs = Input(shape=[img_h, img_w, 1])
-    down_stack = [
-        conv2d_norm(16, 3, 1),  # (batch_size, 128, 128, 64)
-        conv2d_norm(16, 3, 1),
-        # conv2d_norm(16, 3, 1),
-        # conv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 128)
-        # conv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 256)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 8, 8, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 4, 4, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 2, 2, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 1, 1, 512)
-    ]
-
-    up_stack = [
-        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 2, 2, 1024)
-        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 4, 4, 1024)
-        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 8, 8, 1024)
-        # dconv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 1024)
-        # dconv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 512)
-        # dconv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 256)
-        dconv2d_norm(16, 3, 1),  # (batch_size, 128, 128, 128)
-        dconv2d_norm(16, 3, 1)
-    ]
-    last = conv2d_norm(1, 3, 1)
-    # initializer = tf.random_normal_initializer(0., 0.02)
-    # last = tf.keras.layers.Conv2DTranspose(1, 3,
-    #                                        strides=1,
-    #                                        padding='same',
-    #                                        kernel_initializer=initializer,
-    #                                        activation='tanh')  # (batch_size, 256, 256, 3)
-
-    x = inputs
-
-    # Downsampling through the model
-    skips = []
-    for down in down_stack:
-        x = down(x)
-        skips.append(x)
-
-    skips = reversed(skips[:-1])
-
-    # Upsampling and establishing the skip connections
-    for up, skip in zip(up_stack, skips):
-        x = up(x)
-        # x = tf.keras.layers.Concatenate()([x, skip])
-
-    x = last(x)
-
-    return Model(inputs=inputs, outputs=x)
-
 
 def make_discriminator(nang, px):
     model = Sequential()
     model.add(Conv2D(16, (5, 5), strides=(2, 2), padding='same',
                             input_shape=[nang, px, 1]))
     model.add(Conv2D(16, (5, 5), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(32, (5, 5), strides=(2, 2), padding='same'))
     model.add(Conv2D(32, (5, 5), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
     model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
-    model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
-    model.add(Conv2D(64, (3, 3), strides=(1, 1), padding='same'))
+    model.add(Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
+    model.add(Conv2D(128, (3, 3), strides=(1, 1), padding='same'))
+    # model.add(LayerNormalization())
     model.add(LeakyReLU())
     model.add(Dropout(0.2))
 
     model.add(Flatten())
     model.add(Dense(256))
-    model.add(Dense(1))
+    # model.add(LayerNormalization())
+    model.add(Dense(128))
 
+    return model
+
+
+def block(x_img, x_ts):
+    x_parameter = Conv2D(128, kernel_size=3, padding='same')(x_img)
+    x_parameter = Activation('relu')(x_parameter)
+
+    time_parameter = Dense(128)(x_ts)
+    time_parameter = Activation('relu')(time_parameter)
+    time_parameter = Reshape((1, 1, 128))(time_parameter)
+    x_parameter = x_parameter * time_parameter
+    
+    # -----
+    x_out = Conv2D(128, kernel_size=3, padding='same')(x_img)
+    x_out = x_out + x_parameter
+    x_out = LayerNormalization()(x_out)
+    x_out = Activation('relu')(x_out)
+    
+    return x_out
+
+def diffusion_model(img_h, img_w, conv_num, conv_size, dropout, output_num):
+    x = x_input = Input(shape=(img_h, img_w, 1), name='x_input')
+    
+    x_ts = x_ts_input = Input(shape=(1,), name='x_ts_input')
+    x_ts = Dense(192)(x_ts)
+    x_ts = LayerNormalization()(x_ts)
+    x_ts = Activation('relu')(x_ts)
+    
+    # ----- left ( down ) -----
+    print(f'Input shape: {x.shape}')
+    x = x32 = block(x, x_ts)
+    x = MaxPool2D(2, padding = 'same')(x)
+    print(f'x32 shape: {x.shape}')
+    x = x16 = block(x, x_ts)
+    print(f'x16 shape: {x.shape}')
+    x = MaxPool2D(2, padding = 'same')(x)
+    print(f'x8 shape: {x.shape}')
+    x = x8 = block(x, x_ts)
+    print(f'x8 shape: {x.shape}')
+    x = MaxPool2D(2, padding = 'same')(x)
+    
+    x = x4 = block(x, x_ts)
+    
+    # ----- MLP -----
+    x = Flatten()(x)
+    x = Concatenate()([x, x_ts])
+    x = Dense(128)(x)
+    x = LayerNormalization()(x)
+    x = Activation('relu')(x)
+
+    x = Dense((img_h//8) * (img_w//8) * 32)(x)
+    x = LayerNormalization()(x)
+    x = Activation('relu')(x)
+    x = Reshape((img_h//8, img_w//8, 32))(x)
+    print(f'x4 shape: {x.shape}')
+    
+    # ----- right ( up ) -----
+    x = Concatenate()([x, x4])
+    print(f'x4 shape: {x.shape}')
+    x = block(x, x_ts)
+    
+    x = UpSampling2D(2)(x)
+    print(f'x8 shape: {x.shape}')
+    x = Concatenate()([x, x8])
+    x = block(x, x_ts)
+    x = UpSampling2D(2)(x)
+    
+    x = Concatenate()([x, x16])
+    x = block(x, x_ts)
+    x = UpSampling2D(2)(x)
+    
+    x = Concatenate()([x, x32])
+    x = block(x, x_ts)
+    
+    # ----- output -----
+    x = Conv2D(3, kernel_size=1, padding='same')(x)
+    model = tf.keras.models.Model([x_input, x_ts_input], x)
     return model
