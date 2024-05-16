@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 
 from ganrec.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
-from ganrec.models import make_generator, make_generator_diff, make_discriminator
+from ganrec.models import make_generator, make_discriminator
 from ganrec.utils import RECONmonitor, ffactor
 
 
