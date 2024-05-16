@@ -1,4 +1,5 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import numpy as np
 import json
 import tensorflow as tf
@@ -180,7 +181,7 @@ class GANtomo:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
         recon_monitor.close_plot()
-        return recon[epoch]
+        return recon[epoch].astype(np.float32)
 
 
 
@@ -581,7 +582,7 @@ class GANphase:
                     recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, gen_loss[epoch], d_loss.numpy()))
         recon_monitor.close_plot()
-        return absorption[epoch], phase[epoch]
+        return absorption[epoch].astype(np.float32), phase[epoch].astype(np.float32)
     
 
 class GANdiffraction:
