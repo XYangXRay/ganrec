@@ -36,6 +36,8 @@ def discriminator_loss(real_output, fake_output):
 
 def l1_loss(img1, img2):
     return tf.reduce_mean(tf.abs(img1 - img2))
+
+
 def l2_loss(img1, img2):
     return tf.square(tf.reduce_mean(tf.abs(img1-img2)))
 
@@ -58,18 +60,12 @@ def filer_loss(fake_output, img_output, img_filter):
     return f_loss
 
 
-
-
-
 def tfnor_phase(img):
     img = tf.image.per_image_standardization(img)
     img = img / tf.reduce_max(img)
     return img
 
 def tfnor_diff(img):
-    # img = tf.image.per_image_standardization(img)
-    # img = img / tf.reduce_max(img)
-    # img = img - tf.reduce_min(img)
     img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
     return img
 
@@ -92,84 +88,6 @@ def tomo_bp(sinoi, ang):
     bp = tf.image.per_image_standardization(bp)
     bp = tf.reshape(bp, [1, bp.shape[0], bp.shape[1], bp.shape[2]])
     return bp
-
-
-# @tf.function
-# def tomo_radon(rec, ang):
-#     nang = ang.shape[0]
-#     img = tf.transpose(rec, [3, 1, 2, 0])
-#     img = tf.tile(img, [nang, 1, 1, 1])
-#     img = tfa.image.rotate(img, -ang, interpolation='bilinear')
-#     sino = tf.reduce_mean(img, 1, name=None)
-#     sino = tf.image.per_image_standardization(sino)
-#     sino = tf.transpose(sino, [2, 0, 1])
-#     sino = tf.reshape(sino, [sino.shape[0], sino.shape[1], sino.shape[2], 1])
-#     return sino
-
-
-# def phase_fresnel(phase, absorption, ff, px):
-#     paddings = tf.constant([[px // 2, px // 2], [px // 2, px // 2]])
-#     # padding1 = tf.constant([[px // 2, px // 2], [0, 0]])
-#     # padding2 = tf.constant([[0, 0], [px // 2, px // 2]])
-#     pvalue = tf.reduce_mean(phase[:100, :])
-#     # phase = tf.pad(phase, paddings, 'CONSTANT',constant_values=1)
-#     phase = tf.pad(phase, paddings, 'SYMMETRIC')
-#     # phase = tf.pad(phase, paddings, 'REFLECT')
-#     absorption = tf.pad(absorption, paddings, 'SYMMETRIC')
-#     # phase = phase
-#     # absorption = absorption
-#     abfs = tf.complex(-absorption, phase)
-#     abfs = tf.exp(abfs)
-#     ifp = tf.abs(tf.signal.ifft2d(ff * tf.signal.fft2d(abfs))) ** 2
-#     ifp = tf.reshape(ifp, [ifp.shape[0], ifp.shape[1], 1])
-#     ifp = tf.image.central_crop(ifp, 0.5)
-#     ifp = tf.image.per_image_standardization(ifp)
-#     ifp = tf.reshape(ifp, [1, ifp.shape[0], ifp.shape[1], 1])
-#     # ifp = tfnor_phase(ifp)
-#     return ifp
-
-
-# def phase_fraunhofer(phase, absorption):
-#     wf = tf.complex(absorption, phase)
-#     # wf = tf.complex(phase, absorption)
-
-    # wf = mask_img(wf)
-    # wf = tf.multiply(ampl, tf.exp(phshift))
-    # wf = tf.manip.roll(wf, [160, 160], [0, 1])
-
-    ## records from linux machine
-#    ifp = tf.math.multiply(tf.square(tf.abs(tf.signal.fft2d(wf))), tf.square(tf.abs(tf.signal.fft2d(wf))))
- 
-    
-    # # adding log to the fft
-    # ifp = tf.math.log(ifp+8000)
-
-    ## records from linux machine
-#   ifp = tf.math.log(ifp+50)
-
-
-    # ifp = tf.math.log(tf.abs(tf.signal.fft2d(wf))+1)
-    # ifp = tf.math.log(tf.square(tf.abs(tf.signal.fft2d(wf)))+1)
-    ## records from linux machine
-#    ifp = tf.signal.fftshift(ifp)
-#     # wf = mask_img(wf)
-#     # wf = tf.multiply(ampl, tf.exp(phshift))
-#     # wf = tf.manip.roll(wf, [160, 160], [0, 1])
-#     ifp = tf.square(tf.abs(tf.signal.fft2d(wf)))
- 
-    
-#     # # adding log to the fft
-#     # ifp = tf.math.log(ifp+8000)
-#     ifp = tf.math.log(ifp+10000)
-#     # ifp = tf.math.log(tf.abs(tf.signal.fft2d(wf))+1)
-#     # ifp = tf.math.log(tf.square(tf.abs(tf.signal.fft2d(wf)))+1)
-#     ifp = tf.signal.fftshift(ifp)
-  
-#     # ifp = tf.roll(ifp, [256, 256], [0, 1])
-#     ifp = tf.reshape(ifp, [1, ifp.shape[0], ifp.shape[1], 1])
-#     ifp = tf.image.per_image_standardization(ifp)
-#     ifp = tfnor_diff(ifp)
-#     return ifp
 
 
 class GANrec:

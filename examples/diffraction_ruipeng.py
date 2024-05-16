@@ -10,8 +10,7 @@ from ganrec.ganrec2 import GANdiffraction
 
 
 fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4/'
-spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_pad_20240416/'
-spath1 = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_avg20_20240415/'
+spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_20240415/'
 # spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208/'
 fname_mask = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/mask_crop_nor.tiff'
 iter_num = 1200
@@ -112,7 +111,7 @@ def main():
         abs, rec = gan_diff_object.recon
         end = time.time()
         print('Running time is {}'.format(end - start))
-            # print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+        print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
         save_tiff(rec.reshape((px, px)), spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
 # avg_num = 20
 # def main():
