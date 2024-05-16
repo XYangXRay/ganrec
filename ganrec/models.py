@@ -1,4 +1,5 @@
 from pickle import TRUE
+
 import tensorflow as tf
 from tensorflow.keras import Sequential, Input, Model
 from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
@@ -6,7 +7,11 @@ from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
         BatchNormalization, Dropout, UpSampling2D, Reshape, \
             ReLU,LeakyReLU, Activation, Add
 from tensorflow.keras.initializers import glorot_uniform
-from tensorflow.signal import fft, fft2d, ifft, ifft2d, rfft, irfft, rfft2d, irfft2d
+from tensorflow.keras.layers import (Activation, Add, BatchNormalization, Conv2D,
+                                     Conv2DTranspose, Dense, Dropout, Flatten,
+                                     Layer, LeakyReLU, ReLU, concatenate)
+from tensorflow.signal import (fft, fft2d, ifft, ifft2d, irfft, irfft2d, rfft,
+                               rfft2d)
 
 def dense_norm(units, dropout, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
