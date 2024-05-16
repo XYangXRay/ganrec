@@ -5,9 +5,9 @@ from tensorflow.keras import Input, Model, Sequential
 from tensorflow.keras.initializers import glorot_uniform
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization, Conv2D,
                                      Conv2DTranspose, Dense, Dropout, Flatten,
-                                     Layer, LeakyReLU, MaxPool2D, ReLU, Reshape,
+                                     LayerNormalization, LeakyReLU, MaxPool2D, Reshape,
                                      UpSampling2D, concatenate)
-from tensorflow.signal import fft, fft2d, ifft, ifft2d, irfft, irfft2d, rfft, rfft2d
+from tensorflow.signal import irfft2d, rfft2d
 
 
 def dense_norm(units, dropout, apply_batchnorm=False):
@@ -19,11 +19,8 @@ def dense_norm(units, dropout, apply_batchnorm=False):
               use_bias=True, 
               kernel_initializer=initializer))
     result.add(Dropout(dropout))
-
     if apply_batchnorm:
-        # result.add(BatchNormalization())
         result.add(LayerNormalization())
-
     result.add(LeakyReLU())
 
     return result
@@ -42,7 +39,6 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=False):
                use_bias=False))
 
     if apply_batchnorm:
-        # result.add(BatchNormalization())
         result.add(LayerNormalization())
 
     result.add(LeakyReLU())
@@ -61,12 +57,9 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
                         padding='same',
                         kernel_initializer=initializer,
                         use_bias=False))
-
     if apply_dropout:
         result.add(Dropout(0.25))
-
     result.add(LeakyReLU())
-
     return result
 
 
@@ -117,55 +110,11 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     ]
 
     last = conv2d_norm(output_num, 3, 1)
-    # diffraction test temp with down sampled output
-    # last = conv2d_norm(output_num, 3, 2)
 
     for fc in fc_stack:
         x = fc(x)
 
     x = tf.reshape(x, shape=[-1, img_w, img_w, 1])
-    # Convolutions
-    for conv in conv_stack:
-        x = conv(x)
-
-    for dconv in dconv_stack:
-        x = dconv(x)
-    x = last(x)
-    return Model(inputs=inputs, outputs=x)
-
-def make_generator_diff(img_h, img_w, conv_num, conv_size, dropout, output_num):
-    units = 128
-    fc_size = (img_w//2) ** 2
-    inputs = Input(shape=(img_h, img_w, 1))
-    x = Flatten()(inputs)
-    fc_stack = [
-        dense_norm(units, dropout),
-        dense_norm(units, dropout),
-        dense_norm(units, dropout),
-        dense_norm(fc_size, 0),
-    ]
-
-    conv_stack = [
-        conv2d_norm(conv_num, conv_size+2, 1),
-        conv2d_norm(conv_num, conv_size+2, 1),
-        conv2d_norm(conv_num, conv_size, 1),
-
-    ]
-
-    dconv_stack = [
-        dconv2d_norm(conv_num, conv_size+2, 1),
-        dconv2d_norm(conv_num, conv_size+2, 1),
-        dconv2d_norm(conv_num, conv_size, 1),
-    ]
-
-    last = conv2d_norm(output_num, 3, 1)
-    # diffraction test temp with down sampled output
-    # last = conv2d_norm(output_num, 3, 2)
-
-    for fc in fc_stack:
-        x = fc(x)
-
-    x = tf.reshape(x, shape=[-1, img_w//2, img_w//2, 1])
     # Convolutions
     for conv in conv_stack:
         x = conv(x)
