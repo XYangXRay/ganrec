@@ -5,7 +5,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 
 from ganrec.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
-from ganrec.models import make_generator, make_generator_diff, make_generator_fno, make_discriminator, make_filter, diffusion_model
+from ganrec.models import make_generator, make_generator_diff, make_discriminator
 from ganrec.utils import RECONmonitor, ffactor
 
 
@@ -56,8 +56,6 @@ def tfnor_phase(img):
     return img
 
 
-
-
 def avg_results(recon, loss):
     sort_index = np.argsort(loss)
     recon_tmp = recon[sort_index[:10], :, :, :]
@@ -90,9 +88,6 @@ class GANtomo:
         self.discriminator_optimizer = None
 
     def make_model(self):
-        self.filter = make_filter(self.prj_input.shape[0],
-                                  self.prj_input.shape[1])
-  
         self.generator = make_generator(self.prj_input.shape[0],
                                         self.prj_input.shape[1],
                                         self.conv_num,
@@ -215,9 +210,6 @@ class GANtensor:
         self.generator_optimizer = None
         self.discriminator_optimizer = None
     def make_model(self):
-        self.filter = make_filter(self.prj_input.shape[0],
-                                  self.prj_input.shape[1])
-  
         self.generator = make_generator(self.prj_input.shape[0],
                                         self.prj_input.shape[1],
                                         self.conv_num,
@@ -341,8 +333,6 @@ class GANtomo3D:
         self.discriminator_optimizer = None
 
     def make_model(self):
-        self.filter = make_filter(self.prj_input.shape[0],
-                                  self.prj_input.shape[1])
         self.generator = make_generator(self.prj_input.shape[0],
                                         self.prj_input.shape[1],
                                         self.conv_num,
@@ -510,8 +500,6 @@ class GANphase:
         self.discriminator_optimizer = None
 
     def make_model(self):
-        self.filter = make_filter(self.i_input.shape[0],
-                                  self.i_input.shape[1])
         self.generator = make_generator(self.i_input.shape[0],
                                         self.i_input.shape[1],
                                         self.conv_num,
@@ -630,8 +618,6 @@ class GANdiffraction:
         return img
 
     def make_model(self):
-        self.filter = make_filter(self.i_input.shape[0],
-                                  self.i_input.shape[1])
         self.generator = make_generator_diff(self.i_input.shape[0],
                                         self.i_input.shape[1],
                                         self.conv_num,

@@ -1,17 +1,14 @@
 from pickle import TRUE
 
 import tensorflow as tf
-from tensorflow.keras import Sequential, Input, Model
-from tensorflow.keras.layers import Layer, Dense, Conv2D, Conv2DTranspose, \
-    Flatten, concatenate, LayerNormalization, MaxPool2D, Concatenate, \
-        BatchNormalization, Dropout, UpSampling2D, Reshape, \
-            ReLU,LeakyReLU, Activation, Add
+from tensorflow.keras import Input, Model, Sequential
 from tensorflow.keras.initializers import glorot_uniform
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization, Conv2D,
                                      Conv2DTranspose, Dense, Dropout, Flatten,
-                                     Layer, LeakyReLU, ReLU, concatenate)
-from tensorflow.signal import (fft, fft2d, ifft, ifft2d, irfft, irfft2d, rfft,
-                               rfft2d)
+                                     Layer, LeakyReLU, MaxPool2D, ReLU, Reshape,
+                                     UpSampling2D, concatenate)
+from tensorflow.signal import fft, fft2d, ifft, ifft2d, irfft, irfft2d, rfft, rfft2d
+
 
 def dense_norm(units, dropout, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()
@@ -19,7 +16,6 @@ def dense_norm(units, dropout, apply_batchnorm=False):
     result = Sequential()
     result.add(
         Dense(units, 
-            #   activation=tf.nn.tanh, 
               use_bias=True, 
               kernel_initializer=initializer))
     result.add(Dropout(dropout))
@@ -66,8 +62,6 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
                         kernel_initializer=initializer,
                         use_bias=False))
 
-    # result.add(LayerNormalization())
-
     if apply_dropout:
         result.add(Dropout(0.25))
 
@@ -75,76 +69,6 @@ def dconv2d_norm(filters, size, strides, apply_dropout=False):
 
     return result
 
-
-# Define the residual block as a new layer
-class Res_dense(Layer):
-    def __init__(self, units, dropout,**kwargs):
-        super(Res_dense, self).__init__(**kwargs)
-        self.units = units
-        self.dropout = dropout
-
-    def call(self, x):
-        # the residual block using Keras functional API
-        first_layer = Activation("linear", trainable=False)(x)
-        x = Dense(self.units, 
-                  activation=tf.nn.tanh, 
-                  use_bias=True)(first_layer)
-        x = Dense(self.units, 
-                  activation=tf.nn.tanh, 
-                  use_bias=True)(x)
-        residual = Add()([x, first_layer])
-        x = Activation(tf.nn.tanh)(residual)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-
-class Res_conv(Layer):
-    def __init__(self, filters, size,**kwargs):
-        super(Res_conv, self).__init__(**kwargs)
-        self.filters = filters
-        self.size = size
-
-    def call(self, x):
-        # the residual block using Keras functional API
-        first_layer = Activation("linear", trainable=False)(x)
-        x = Conv2D(self.filters,
-                   self.size,
-                   padding="same")(first_layer)
-        x = Activation("relu")(x)
-        x = Conv2D(self.filters,
-                   self.size,
-                   padding="same")(x)
-        residual = Add()([x, first_layer])
-        x = Activation("relu")(residual)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-    
-class Res_dconv(Layer):
-    def __init__(self, filters, size,**kwargs):
-        super(Res_dconv, self).__init__(**kwargs)
-        self.filters = filters
-        self.size = size
-
-    def call(self, x):
-        # the residual block using Keras functional API
-        first_layer = Activation("linear", trainable=False)(x)
-        x = Conv2DTranspose(self.filters,
-                            self.size,
-                            padding="same")(first_layer)
-        x = Activation("relu")(x)
-        x = Conv2DTranspose(self.filters,
-                            self.size,
-                            padding="same")(x)
-        residual = Add()([x, first_layer])
-        x = Activation("relu")(residual)
-        return x
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
 
 def dense_res(x, filters, size):
     x = Conv2D(filters, size, padding='same')(x)
@@ -166,15 +90,7 @@ def conv_res(x, filters, size):
     out = BatchNormalization()(out)
     return out
 
-
-
-def make_generator_rb(img_h, img_w, conv_num, conv_size, dropout, output_num):
-    units = 128
-    fc_size = img_w ** 2
-    inputs = Input(shape=(img_h, img_w, 1))
-    x = tf.keras.layers.Flatten()(inputs)
     
-
 def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
     fc_size = img_w ** 2
@@ -410,58 +326,6 @@ def make_generator_fno(img_h, img_w, conv_num, conv_size, dropout, output_num):
     model = Model(inputs = X_input, outputs = X, name = 'Fourier-Neural-Operator')
     
     return model
-
-def make_filter(img_h, img_w):
-    inputs = Input(shape=[img_h, img_w, 1])
-    down_stack = [
-        conv2d_norm(16, 3, 1),  # (batch_size, 128, 128, 64)
-        conv2d_norm(16, 3, 1),
-        # conv2d_norm(16, 3, 1),
-        # conv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 128)
-        # conv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 256)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 8, 8, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 4, 4, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 2, 2, 512)
-        # conv2d_norm(512, 4, 2),  # (batch_size, 1, 1, 512)
-    ]
-
-    up_stack = [
-        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 2, 2, 1024)
-        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 4, 4, 1024)
-        # dconv2d_norm(512, 4, 2, apply_dropout=True),  # (batch_size, 8, 8, 1024)
-        # dconv2d_norm(512, 4, 2),  # (batch_size, 16, 16, 1024)
-        # dconv2d_norm(256, 4, 2),  # (batch_size, 32, 32, 512)
-        # dconv2d_norm(128, 4, 2),  # (batch_size, 64, 64, 256)
-        dconv2d_norm(16, 3, 1),  # (batch_size, 128, 128, 128)
-        dconv2d_norm(16, 3, 1)
-    ]
-    last = conv2d_norm(1, 3, 1)
-    # initializer = tf.random_normal_initializer(0., 0.02)
-    # last = tf.keras.layers.Conv2DTranspose(1, 3,
-    #                                        strides=1,
-    #                                        padding='same',
-    #                                        kernel_initializer=initializer,
-    #                                        activation='tanh')  # (batch_size, 256, 256, 3)
-
-    x = inputs
-
-    # Downsampling through the model
-    skips = []
-    for down in down_stack:
-        x = down(x)
-        skips.append(x)
-
-    skips = reversed(skips[:-1])
-
-    # Upsampling and establishing the skip connections
-    for up, skip in zip(up_stack, skips):
-        x = up(x)
-        # x = tf.keras.layers.Concatenate()([x, skip])
-
-    x = last(x)
-
-    return Model(inputs=inputs, outputs=x)
 
 
 def make_discriminator(nang, px):
