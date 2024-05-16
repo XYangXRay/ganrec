@@ -50,10 +50,9 @@ Navigate to the main directory of the cloned repository and install the necessar
 GANrec currently has the applications for tomography reconstructon and in-line phase contrast (holography) phase retrieval:
 
 1. X-ray tomography reconstruction:
-   - [Jupyter Notebook Example](https://github.com/XYangXRay/ganrec/blob/main/examples/xray_tomography_example.ipynb)
+   - [Jupyter Notebook Example](https://github.com/XYangXRay/ganrec/blob/main/examples/tomography_example.ipynb)
 2. Holography phase retreival:
-   - [Jupyter Notebook Example]
-
+   - [Jupyter Notebook Example](https://github.com/XYangXRay/ganrec/blob/main/examples/holography_example.ipynb)
 
 # References
 
