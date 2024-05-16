@@ -55,9 +55,7 @@ def tfnor_phase(img):
     img = img / tf.reduce_max(img)
     return img
 
-def tfnor_diff(img):
-    img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
-    return img
+
 
 
 def avg_results(recon, loss):
@@ -306,7 +304,6 @@ class GANtensor:
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
                                                                            step_result['d_loss'].numpy()))
-            # plt.close()
         if self.save_wpath != None:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
@@ -527,14 +524,6 @@ class GANphase:
         self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
 
-    def make_chechpoints(self):
-        checkpoint_dir = '/data/ganrec/training_checkpoints'
-        checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-        checkpoint = tf.train.Checkpoint(generator_optimizer=self.generator_optimizer,
-                                         discriminator_optimizer=self.discriminator_optimizer,
-                                         generator=self.generator,
-                                         discriminator=self.discriminator)
-
     @tf.function
     def rec_step(self, i_input, ff):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
@@ -568,8 +557,6 @@ class GANphase:
     @property
     def recon(self):
         ff = ffactor(self.px * 2, self.energy, self.z, self.pv)
-        # print(ff.shape, ff.max(), ff.min())
-
         i_input = np.reshape(self.i_input, (1, self.px, self.px, 1))
         i_input = tf.cast(i_input, dtype=tf.float32)
         self.make_model()
@@ -594,52 +581,53 @@ class GANphase:
             i_rec = step_results['i_rec']
             gen_loss[epoch] = step_results['g_loss']
             d_loss = step_results['d_loss']
-            # phase[epoch, :, :], absorption[epoch, :, :], i_rec, gen_loss[epoch], d_loss = self.rec_step(i_input,
-            #                                                                                                   ff)
             ###########################################################################
 
             plot_x.append(epoch)
             plot_loss = gen_loss[:epoch + 1]
             if (epoch + 1) % 100 == 0:
-                # checkpoint.save(file_prefix=checkpoint_prefix)
                 if recon_monitor:
                     i_rec = np.reshape(i_rec, (self.px, self.px))
                     i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
                     phase_plt = np.reshape(phase[epoch], (self.px, self.px))
                     recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
-                # print(phase.max(), phase.min())
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, gen_loss[epoch], d_loss.numpy()))
         recon_monitor.close_plot()
         return absorption[epoch], phase[epoch]
-        # return avg_results(recon, gen_loss)
+    
 
 class GANdiffraction:
     def __init__(self, i_input, mask, **kwargs):
-        phase_args = config['GANdiffraction']
-        phase_args.update(**kwargs)
+        diffraction_args = config['GANdiffraction']
+        diffraction_args.update(**kwargs)
         super(GANdiffraction, self).__init__()
         self.i_input = i_input
         self.mask = mask
         self.px, _ = i_input.shape
-        self.iter_num = phase_args['iter_num']
-        self.conv_num = phase_args['conv_num']
-        self.conv_size = phase_args['conv_size']
-        self.dropout = phase_args['dropout']
-        self.l1_ratio = phase_args['l1_ratio']
-        self.abs_ratio = phase_args['abs_ratio']
-        self.g_learning_rate = phase_args['g_learning_rate']
-        self.d_learning_rate = phase_args['d_learning_rate']
-        self.phase_only = phase_args['phase_only']
-        self.save_wpath = phase_args['save_wpath']
-        self.init_wpath = phase_args['init_wpath']
-        self.init_model = phase_args['init_model']
-        self.recon_monitor = phase_args['recon_monitor']
+        self.iter_num = diffraction_args['iter_num']
+        self.conv_num = diffraction_args['conv_num']
+        self.conv_size = diffraction_args['conv_size']
+        self.dropout = diffraction_args['dropout']
+        self.l1_ratio = diffraction_args['l1_ratio']
+        self.abs_ratio = diffraction_args['abs_ratio']
+        self.g_learning_rate = diffraction_args['g_learning_rate']
+        self.d_learning_rate = diffraction_args['d_learning_rate']
+        self.phase_only = diffraction_args['phase_only']
+        self.save_wpath = diffraction_args['save_wpath']
+        self.init_wpath = diffraction_args['init_wpath']
+        self.init_model = diffraction_args['init_model']
+        self.recon_monitor = diffraction_args['recon_monitor']
         self.filter = None
         self.generator = None
         self.discriminator = None
         self.filter_optimizer = None
         self.generator_optimizer = None
         self.discriminator_optimizer = None
+        
+    @tf.function
+    def tfnor_diff(img):
+        img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
+        return img
 
     def make_model(self):
         self.filter = make_filter(self.i_input.shape[0],
@@ -656,55 +644,24 @@ class GANdiffraction:
         self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
 
-    def make_chechpoints(self):
-        checkpoint_dir = '/data/ganrec/training_checkpoints'
-        checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-        checkpoint = tf.train.Checkpoint(generator_optimizer=self.generator_optimizer,
-                                         discriminator_optimizer=self.discriminator_optimizer,
-                                         generator=self.generator,
-                                         discriminator=self.discriminator)
-    # def mask_outside_area(self, top, bottom, left, right):
-    #     # Create a mask with the same shape as phase
-    #     mask = tf.fill([1, self.ifp.shape[1], self.ifp.shape[2], 1], 0)
-
-    #     # Set the specific area in the mask to 1
-    #     mask = mask[0, top:bottom, left:right, :].assign(1)
-
-    #     # Apply the mask to ifp
-    #     self.ifp = tf.where(mask == 1, self.ifp, mask)
     @tf.function
     def rec_step(self, i_input):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             recon = self.generator(i_input)
-            # recon = tfa.image.median_filter2d(recon)
-            phase = tfnor_diff(recon[:, :, :, 0])
+            phase = self.tfnor_diff(recon[:, :, :, 0])
             phase = tf.reshape(phase, [self.px//2, self.px//2])
-            # add median filter to the result
-            # phase_mask = tf.zeros_like(phase)
-            
-            # phase_mask = tf.ones([128, 128])
-            # phase_mask = tf.pad(phase_mask, [[64, 64], [64, 64]])
-            # phase = tf.multiply(phase, phase_mask)
-            phase = tf.pad(phase, [[64, 64], [64, 64]])
- 
-
-            
-            # phase = tfa.image.median_filter2d(phase)
-            # phase = tfa.image.gaussian_filter2d(phase)
-            
-            
-            absorption = (1 - tfnor_diff(recon[:, :, :, 1]))* self.abs_ratio
+            phase = tf.pad(phase, [[64, 64], [64, 64]])           
+            absorption = (1 - self.tfnor_diff(recon[:, :, :, 1]))* self.abs_ratio
             absorption = tf.reshape(absorption, [self.px//2, self.px//2])
             absorption = tf.pad(absorption, [[64, 64], [64, 64]])
             if self.phase_only:
                 absorption = tf.zeros_like(phase)
-            
             phase_obj = PhaseFraunhofer(phase, absorption)
             i_rec = phase_obj.compute()
-            # i_rec = phase_fraunhofer(phase, absorption)
             mask = tf.reshape(self.mask, [1, self.mask.shape[0], self.mask.shape[1], 1])
-            # i_rec = tf.multiply(i_rec, mask)
-            i_rec = tfnor_diff(i_rec)
+            if self.mask:
+                i_rec = tf.multiply(i_rec, mask)
+            i_rec = self.tfnor_diff(i_rec)
             real_output = self.discriminator(i_input, training=True)
             fake_output = self.discriminator(i_rec, training=True)
             g_loss = generator_loss(fake_output, i_input, i_rec, self.l1_ratio)
@@ -725,11 +682,7 @@ class GANdiffraction:
 
     @property
     def recon(self):
-        # ff = ffactor(self.px * 2, self.energy, self.z, self.pv)
-        # print(ff.shape, ff.max(), ff.min())
-
-        i_input = np.reshape(self.i_input, (1, self.px, self.px, 1))
-    
+        i_input = np.reshape(self.i_input, (1, self.px, self.px, 1)) 
         i_input = tf.cast(i_input, dtype=tf.float32)
         self.make_model()
         phase = np.zeros((self.iter_num, self.px, self.px))
@@ -753,75 +706,19 @@ class GANdiffraction:
             i_rec = step_results['i_rec']
             gen_loss[epoch] = step_results['g_loss']
             d_loss = step_results['d_loss']
-            # phase[epoch, :, :], absorption[epoch, :, :], i_rec, gen_loss[epoch], d_loss = self.rec_step(i_input,
-            #                                                                                                   ff)
             ###########################################################################
-            # print(i_rec.shape)
+     
             if self.recon_monitor:
                 plot_x.append(epoch)
                 plot_loss = gen_loss[:epoch + 1]
             if (epoch + 1) % 100 == 0:
-                # checkpoint.save(file_prefix=checkpoint_prefix)
                 if self.recon_monitor:
                     i_rec = np.reshape(i_rec, (self.px, self.px))
                     i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
                     phase_plt = np.reshape(phase[epoch], (self.px, self.px))
                     recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
-                # print(phase.max(), phase.min())
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, gen_loss[epoch], d_loss.numpy()))
         if self.recon_monitor:
             recon_monitor.close_plot()
         return absorption[epoch], phase[epoch]
-        # return avg_results(recon, gen_loss)
 
-
-def _get_GANtomo_kwargs():
-    return{
-        'iter_num': 1000,
-        'conv_num': 32,
-        'conv_size': 3,
-        'dropout': 0.25,
-        'l1_ratio': 10,
-        'g_learning_rate': 1e-3,
-        'd_learning_rate': 1e-5,
-        'save_wpath': None,
-        'init_wpath': None,
-        'init_model': False,
-        'recon_monitor': True,
-    }
-
-
-def _get_GANphase_kwargs():
-    return{
-        'iter_num': 1000,
-        'conv_num': 32,
-        'conv_size': 3,
-        'dropout': 0.25,
-        'l1_ratio': 10,
-        'abs_ratio': 0.05,
-        'g_learning_rate': 1e-3,
-        'd_learning_rate': 1e-5,
-        'phase_only': True,
-        'save_wpath': None,
-        'init_wpath': None,
-        'init_model': False,
-        'recon_monitor': True,
-    }
-    
-
-# def _get_GANdiffraction_kwargs():
-#     return{
-#         'iter_num': 1000,
-#         'conv_num': 32,
-#         'conv_size': 3,
-#         'dropout': 0.25,
-#         'l1_ratio': 100,
-#         'abs_ratio': 0.0,
-#         'g_learning_rate': 1e-3,
-#         'd_learning_rate': 1e-6,
-#         'phase_only': True,
-#         'save_wpath': None,
-#         'init_wpath': None,
-#         'init_model': False,
-#         'recon_monitor': True,
-#     }
