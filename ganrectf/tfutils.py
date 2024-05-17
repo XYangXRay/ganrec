@@ -2,7 +2,7 @@ from typing import Union, Callable, Optional, List
 import importlib
 import numpy as np
 import tensorflow as tf
-# from tensorflow.keras import KerasTensor
+from tensorflow.keras import KerasTensor
 
 _IMAGE_DTYPES = {
     tf.dtypes.uint8,
@@ -48,7 +48,7 @@ TensorLike = Union[
     tf.Tensor,
     tf.SparseTensor,
     tf.Variable,
-    # KerasTensor,
+    KerasTensor,
 ]
 FloatTensorLike = Union[tf.Tensor, float, np.float16, np.float32, np.float64]
 AcceptableDTypes = Union[tf.DType, np.dtype, type, int, str, None]
@@ -191,7 +191,7 @@ def tfrotate(
             fill_mode=fill_mode,
             fill_value=fill_value,
         )
-        return img_utils.from_4D_image(output, original_ndims)
+        return from_4D_image(output, original_ndims)
 
 def transform(
     images: TensorLike,

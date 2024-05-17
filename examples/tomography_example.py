@@ -1,6 +1,6 @@
 import tifffile
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 from ganrectf.utils import angles, nor_tomo
 from ganrectf.ganrec import GANtomo
 
@@ -9,7 +9,7 @@ def main():
     nang, px = prj.shape
     ang = angles(nang)
     prj = nor_tomo(prj)
-    gan_tomo_object = GANtomo(prj, ang, iter_num=2000)
+    gan_tomo_object = GANtomo(prj, ang, iter_num=2000, recon_monitor=False)
     rec = gan_tomo_object.recon
     tifffile.imwrite('./test_results/tooth_recon.tiff', rec)
 if __name__ == "__main__":

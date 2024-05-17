@@ -163,21 +163,22 @@ class GANtomo:
             recon[epoch, :, :, :] = step_result['recon']
             gen_loss[epoch] = step_result['g_loss']
             ###########################################################################
-            plot_x.append(epoch)
-            plot_loss = gen_loss[:epoch + 1]
+            if self.recon_monitor:
+                plot_x.append(epoch)
+                plot_loss = gen_loss[:epoch + 1]
             if (epoch + 1) % 100 == 0:
-                if recon_monitor:
+                if self.recon_monitor:
                     prj_rec = np.reshape(step_result['prj_rec'], (nang, px))
                     prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
                     rec_plt = np.reshape(recon[epoch], (px, px))
-                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
+                    self.recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
                                                                            step_result['d_loss'].numpy()))
         if self.save_wpath != None:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
-        recon_monitor.close_plot()
+        self.recon_monitor.close_plot()
         return recon[epoch].astype(np.float32)
 
 

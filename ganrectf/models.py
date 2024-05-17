@@ -114,7 +114,7 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     for fc in fc_stack:
         x = fc(x)
 
-    x = Reshape((-1, img_w, img_w, 1))(x)
+    x = Reshape((img_w, img_w, 1))(x)
     # Convolutions
     for conv in conv_stack:
         x = conv(x)

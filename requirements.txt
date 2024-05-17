@@ -1,7 +1,7 @@
 kornia
 matplotlib
 numpy
-tensorflow
+tensorflow[and-cuda]
 tifffile
 torch
 torchvision
