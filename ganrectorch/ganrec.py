@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch import nn, optim
 from torch.autograd import Variable
 from torchvision import transforms
-from ganrectorch.models import make_discriminator, make_generator
+from ganrectorch.models import Generator, Discriminator
 from ganrectorch.propagators import TomoRadon
 from ganrectorch.utils import RECONmonitor
 
@@ -46,7 +46,7 @@ def tfnor_phase(img):
     img = img / torch.max(img)
     return img
 
-class GANtomo(nn.Module):
+class GANtomo:
     def __init__(self, prj_input, angle, **kwargs):
         super(GANtomo, self).__init__()
         tomo_args = config['GANtomo']
@@ -72,14 +72,14 @@ class GANtomo(nn.Module):
         self.discriminator_optimizer = None
 
     def make_model(self):
-        self.generator = make_generator(self.prj_input.shape[0],
+        self.generator = Generator(self.prj_input.shape[0],
                                         self.prj_input.shape[1],
                                         self.conv_num,
                                         self.conv_size,
                                         self.dropout,
                                         1)
                  
-        self.discriminator = make_discriminator(self.prj_input.shape[0],
+        self.discriminator = Discriminator(self.prj_input.shape[0],
                                                 self.prj_input.shape[1])
         self.filter_optimizer = optim.Adam(self.filter.parameters(), lr=5e-5)
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
