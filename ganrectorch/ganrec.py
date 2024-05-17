@@ -5,9 +5,9 @@ import torch.nn.functional as F
 from torch import nn, optim
 from torch.autograd import Variable
 from torchvision import transforms
-from ganrectf.models import make_discriminator, make_generator
-from ganrectf.propagators import TomoRadon
-from ganrectf.utils import RECONmonitor
+from ganrectorch.models import make_discriminator, make_generator
+from ganrectorch.propagators import TomoRadon
+from ganrectorch.utils import RECONmonitor
 
 # Load the configuration from the JSON file
 def load_config(filename):
