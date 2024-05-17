@@ -1,4 +1,4 @@
-from ganrectf.ganrec2 import *
+from ganrectf.ganrec import *
 from ganrectf.utils import *
 from ganrectf.models import *
 from ._version import get_versions

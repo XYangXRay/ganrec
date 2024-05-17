@@ -4,7 +4,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np
 import tifffile
 from ganrectf.utils import nor_phase
-from ganrectf.ganrec2 import GANphase
+from ganrectf.ganrec import GANphase
 
 def main():
     energy = 11
