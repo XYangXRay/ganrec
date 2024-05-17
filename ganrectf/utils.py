@@ -136,3 +136,4 @@ def save_tiff(image, filename):
     image = np.array(image, dtype = np.float32)
     # Save the image
     tifffile.imwrite(filename, image)
+    

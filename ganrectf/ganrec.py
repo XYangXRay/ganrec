@@ -2,8 +2,6 @@ import os
 import numpy as np
 import json
 import tensorflow as tf
-import tensorflow_addons as tfa
-
 from ganrectf.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
 from ganrectf.models import make_generator, make_discriminator
 from ganrectf.utils import RECONmonitor, ffactor
