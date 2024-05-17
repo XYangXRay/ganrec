@@ -178,7 +178,8 @@ class GANtomo:
         if self.save_wpath != None:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
-        self.recon_monitor.close_plot()
+        if self.recon_monitor:
+            self.recon_monitor.close_plot()
         return recon[epoch].astype(np.float32)
 
 

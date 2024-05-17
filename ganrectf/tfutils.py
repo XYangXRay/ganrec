@@ -2,7 +2,12 @@ from typing import Union, Callable, Optional, List
 import importlib
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import KerasTensor
+
+if tf.__version__[2:3] > "10":
+    from tensorflow.keras import KerasTensor    
+else:
+    from keras.engine.keras_tensor import KerasTensor
+
 
 _IMAGE_DTYPES = {
     tf.dtypes.uint8,
