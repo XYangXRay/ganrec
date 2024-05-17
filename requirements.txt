@@ -1,10 +1,10 @@
-# kornia
 jupyter
 matplotlib
 numpy
 tifffile
-# torch
-# torchvision
-tensorflow[and-cuda]
+torch
+torchvision
+kornia
+# tensorflow
 
 
