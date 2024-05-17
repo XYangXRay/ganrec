@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow.keras import Input, Model, Sequential
 from tensorflow.keras.initializers import glorot_uniform
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization, Conv2D,
-                                     Conv2DTranspose, Dense, Dropout, Flatten,
+                                     Conv2DTranspose, Dense, Dropout, Flatten, Reshape,
                                      LayerNormalization, LeakyReLU, MaxPool2D, Reshape,
                                      UpSampling2D, concatenate)
 from tensorflow.signal import irfft2d, rfft2d
@@ -114,7 +114,7 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     for fc in fc_stack:
         x = fc(x)
 
-    x = tf.reshape(x, shape=[-1, img_w, img_w, 1])
+    x = Reshape((-1, img_w, img_w, 1))(x)
     # Convolutions
     for conv in conv_stack:
         x = conv(x)
