@@ -9,11 +9,6 @@ if int(major) > 2 or (int(major) == 2 and int(minor) > 9):
 else:
     from keras.engine.keras_tensor import KerasTensor
 
-# if tf.__version__[2:3] > "10":
-#     from tensorflow.keras import KerasTensor    
-# else:
-#     from keras.engine.keras_tensor import KerasTensor
-
 
 _IMAGE_DTYPES = {
     tf.dtypes.uint8,
