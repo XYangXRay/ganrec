@@ -1,7 +1,7 @@
 import time
 import dxchange
-from ganrec.utils import angles, nor_tomo
-from ganrec.ganrec2 import GANtomo
+from ganrectf.utils import angles, nor_tomo
+from ganrectf.ganrec2 import GANtomo
 
 def main():
     fname_data = 'tooth.tiff'

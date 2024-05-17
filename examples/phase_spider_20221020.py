@@ -3,8 +3,8 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import numpy as np
 import tifffile
-from ganrec.utils import nor_phase
-from ganrec.ganrec2 import GANphase
+from ganrectf.utils import nor_phase
+from ganrectf.ganrec2 import GANphase
 
 def main():
     energy = 11

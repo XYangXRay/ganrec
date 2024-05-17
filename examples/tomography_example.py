@@ -1,8 +1,8 @@
 import tifffile
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-from ganrec.utils import angles, nor_tomo
-from ganrec.ganrec2 import GANtomo
+from ganrectf.utils import angles, nor_tomo
+from ganrectf.ganrec2 import GANtomo
 
 def main():
     prj = tifffile.imread('./test_data/tooth.tiff')

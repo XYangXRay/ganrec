@@ -4,9 +4,9 @@ import json
 import tensorflow as tf
 import tensorflow_addons as tfa
 
-from ganrec.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
-from ganrec.models import make_generator, make_discriminator
-from ganrec.utils import RECONmonitor, ffactor
+from ganrectf.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
+from ganrectf.models import make_generator, make_discriminator
+from ganrectf.utils import RECONmonitor, ffactor
 
 
 # Load the configuration from the JSON file
