@@ -14,7 +14,7 @@ def nor_tomo(img):
 
 
 def angles(nang, ang1=0., ang2=180.):
-    return np.linspace(ang1 * np.pi / 180., ang2 * np.pi / 180., nang)
+    return np.linspace(ang1 * np.pi / 180., ang2 * np.pi / 180., nang, dtype =np.float32)
 
 
 def nor_prj(img):

@@ -6,7 +6,7 @@ from torch import nn, optim
 from torch.autograd import Variable
 from torchvision import transforms
 from ganrectorch.models import Generator, Discriminator
-from ganrectorch.propagators import TomoRadon
+from ganrectorch.propagators import RadonTransform
 from ganrectorch.utils import RECONmonitor
 
 # Load the configuration from the JSON file
@@ -46,6 +46,7 @@ def tfnor_phase(img):
     img = img / torch.max(img)
     return img
 
+
 class GANtomo:
     def __init__(self, prj_input, angle, **kwargs):
         super(GANtomo, self).__init__()
@@ -64,24 +65,20 @@ class GANtomo:
         self.init_wpath = tomo_args['init_wpath']
         self.init_model = tomo_args['init_model']
         self.recon_monitor = tomo_args['recon_monitor']
-        self.filter = None
         self.generator = None
         self.discriminator = None
-        self.filter_optimizer = None
         self.generator_optimizer = None
         self.discriminator_optimizer = None
 
     def make_model(self):
         self.generator = Generator(self.prj_input.shape[0],
-                                        self.prj_input.shape[1],
-                                        self.conv_num,
-                                        self.conv_size,
-                                        self.dropout,
-                                        1)
-                 
+                                   self.prj_input.shape[1],
+                                   self.conv_num,
+                                   self.conv_size,
+                                   self.dropout,
+                                   1)
         self.discriminator = Discriminator(self.prj_input.shape[0],
-                                                self.prj_input.shape[1])
-        self.filter_optimizer = optim.Adam(self.filter.parameters(), lr=5e-5)
+                                           self.prj_input.shape[1])
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
         self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
 
@@ -89,13 +86,13 @@ class GANtomo:
         img = transforms.Normalize((0.5,), (0.5,))(img)
         return img
 
-    def recon_step(self, prj, ang):      
+    def recon_step(self, prj, ang):
         self.generator_optimizer.zero_grad()
         self.discriminator_optimizer.zero_grad()
         recon = self.generator(prj)
         recon = self.tfnor_tomo(recon)
-        tomo_radon_obj = TomoRadon(recon, ang)
-        prj_rec = tomo_radon_obj.compute()
+        tomo_radon_obj = RadonTransform(ang)
+        prj_rec = tomo_radon_obj.forward(recon)
         prj_rec = self.tfnor_tomo(prj_rec)
         real_output = self.discriminator(prj)
         fake_output = self.discriminator(prj_rec)
@@ -113,10 +110,10 @@ class GANtomo:
 
     def recon(self):
         nang, px = self.prj_input.shape
-        prj = self.prj_input.view(1, nang, px, 1) 
-        prj = prj.float()
-        prj = self.tfnor_tomo(prj)
-        ang = self.angle.float()
+        prj = torch.from_numpy(self.prj_input)
+        prj = prj.view(-1, 1, nang, px)
+        # prj = self.tfnor_tomo(prj)
+        ang = torch.from_numpy(self.angle)
         self.make_model()
         if self.init_wpath:
             self.generator.load_state_dict(torch.load(self.init_wpath+'generator.pth'))
@@ -136,7 +133,7 @@ class GANtomo:
 
             ###########################################################################
             ## Call the rconstruction step
-            
+
             step_result = self.recon_step(prj, ang)
             recon[epoch, :, :, :] = step_result['recon']
             gen_loss[epoch] = step_result['g_loss']
@@ -144,7 +141,7 @@ class GANtomo:
             plot_x.append(epoch)
             plot_loss = gen_loss[:epoch + 1]
             if (epoch + 1) % 100 == 0:
-                if recon_monitor:
+                if self.recon_monitor:
                     prj_rec = step_result['prj_rec'].view(nang, px)
                     prj_diff = torch.abs(prj_rec - self.prj_input.view((nang, px)))
                     rec_plt = recon[epoch].view(px, px)
@@ -155,5 +152,7 @@ class GANtomo:
         if self.save_wpath != None:
             torch.save(self.generator.state_dict(), self.save_wpath+'generator.pth')
             torch.save(self.discriminator.state_dict(), self.save_wpath+'discriminator.pth')
-        recon_monitor.close_plot()
+        if self.recon_monitor:
+            recon_monitor.close_plot()
         return recon[epoch].float()
+
