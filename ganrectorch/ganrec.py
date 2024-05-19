@@ -7,7 +7,7 @@ from torch.autograd import Variable
 from torchvision import transforms
 from ganrectorch.models import Generator, Discriminator
 from ganrectorch.propagators import RadonTransform
-from ganrectorch.utils import RECONmonitor
+from ganrectorch.utils import RECONmonitor, tensor_to_np
 
 # Load the configuration from the JSON file
 def load_config(filename):
@@ -91,8 +91,8 @@ class GANtomo:
         self.discriminator_optimizer.zero_grad()
         recon = self.generator(prj)
         recon = self.tfnor_tomo(recon)
-        tomo_radon_obj = RadonTransform(ang)
-        prj_rec = tomo_radon_obj.forward(recon)
+        tomo_radon_obj = RadonTransform(recon, ang)
+        prj_rec = tomo_radon_obj.forward()
         prj_rec = self.tfnor_tomo(prj_rec)
         real_output = self.discriminator(prj)
         fake_output = self.discriminator(prj_rec)
@@ -119,7 +119,7 @@ class GANtomo:
             self.generator.load_state_dict(torch.load(self.init_wpath+'generator.pth'))
             print('generator is initialized')
             self.discriminator.load_state_dict(torch.load(self.init_wpath+'discriminator.pth'))
-        recon = torch.zeros((self.iter_num, px, px, 1))
+        recon = torch.zeros((self.iter_num, 1, px, px))
         gen_loss = torch.zeros((self.iter_num))
 
         ###########################################################################
@@ -143,9 +143,9 @@ class GANtomo:
             if (epoch + 1) % 100 == 0:
                 if self.recon_monitor:
                     prj_rec = step_result['prj_rec'].view(nang, px)
-                    prj_diff = torch.abs(prj_rec - self.prj_input.view((nang, px)))
-                    rec_plt = recon[epoch].view(px, px)
-                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
+                    prj_diff = tensor_to_np(torch.abs(prj_rec - prj.view((nang, px))))
+                    rec_plt = tensor_to_np(recon[epoch].view(px, px))
+                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, tensor_to_np(plot_loss))
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
                                                                            step_result['d_loss'].item()))
