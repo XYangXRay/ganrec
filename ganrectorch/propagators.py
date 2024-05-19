@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 import torch.fft
 import torchvision.transforms as transforms
-import kornia
 
 class RadonTransform:
     def __init__(self, prj, angles):
@@ -55,10 +54,10 @@ class TensorRadon:
         vol_mask = vol_mask.view(-1, detector_columns, detector_columns, 1)
         vol_mask = vol_mask.float()
         angles = self.ang.float()
-        thickness = TomoRadon(vol_mask, angles).compute()
+        thickness = RadonTransform(vol_mask, angles).compute()
         thickness = thickness.squeeze()
         strain_tensor = strain_tensor.permute(3, 1, 2, 0)
-        proj_strain_comp = TomoRadon(strain_tensor, angles).compute()
+        proj_strain_comp = RadonTransform(strain_tensor, angles).compute()
         proj_strain_comp = proj_strain_comp.squeeze()
         cos_squared = torch.pow(torch.cos(angles), 2).unsqueeze(1)
         sin_squared = torch.pow(torch.sin(angles), 2).unsqueeze(1)
