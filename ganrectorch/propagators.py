@@ -4,18 +4,18 @@ import torch.fft
 import torchvision.transforms as transforms
 
 class RadonTransform:
-    def __init__(self, prj, angles):
-        self.prj = prj
+    def __init__(self, data, angles):
+        self.data = data
         self.angles = angles
 
     def forward(self):
-        batch_size, channels, height, width = self.prj.shape
+        batch_size, channels, height, width = self.data.shape
         # Create a grid of angles for the rotation matrices
         theta = self.create_rotation_matrices(-self.angles)
         # Generate the affine grid for each angle
         grid = F.affine_grid(theta, [batch_size * len(self.angles), channels, height, width], align_corners=False)
         # Repeat the image for each angle
-        image = self.prj.repeat(len(self.angles), 1, 1, 1)
+        image = self.data.repeat(len(self.angles), 1, 1, 1)
         # Apply the grid to the images
         rotated_images = F.grid_sample(image, grid, mode='bilinear', align_corners=False)
         # Sum along the projection direction (height)

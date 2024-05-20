@@ -75,14 +75,14 @@ class GANtomo:
         self.discriminator_optimizer = None
 
     def make_model(self):
-        self.generator = Generator(self.prj_input.shape[0],
-                                   self.prj_input.shape[1],
+        self.generator = Generator(self.prj_input.shape[2],
+                                   self.prj_input.shape[3],
                                    self.conv_num,
                                    self.conv_size,
                                    self.dropout,
                                    1)
-        self.discriminator = Discriminator(self.prj_input.shape[0],
-                                           self.prj_input.shape[1])
+        self.discriminator = Discriminator(self.prj_input.shape[2],
+                                           self.prj_input.shape[3])
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
         self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
 
@@ -95,7 +95,6 @@ class GANtomo:
         self.discriminator_optimizer.zero_grad()
         recon = self.generator(prj)
         # recon = self.tfnor_tomo(recon)
-        print(recon.shape)
         tomo_radon_obj = RadonTransform(recon, ang)
         prj_rec = tomo_radon_obj.forward()
         prj_rec = self.tfnor_tomo(prj_rec)
@@ -146,7 +145,7 @@ class GANtomo:
             if (epoch + 1) % 100 == 0:
                 if self.recon_monitor:
                     prj_rec = step_result['prj_rec'].view(self.nang, self.px)
-                    prj_diff = tensor_to_np(torch.abs(prj_rec - self.prj.view((self.nang, self.px))).cpu())
+                    prj_diff = tensor_to_np(torch.abs(prj_rec - self.prj_input.view((self.nang, self.px))).cpu())
                     rec_plt = tensor_to_np(recon[epoch].view(self.px, self.px).cpu())
                     recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, tensor_to_np(plot_loss.cpu()))
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,

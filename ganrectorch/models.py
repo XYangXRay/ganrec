@@ -62,32 +62,19 @@ class Generator(nn.Module):
         
         self.generator_model = to_device(nn.Sequential(
             Flatten(),
-            Transpose(),
+            # Transpose(),
             *self.fc_stack,
-            Reshape((-1, 1, self.img_w, self.img_h)),
+            Reshape((-1, 1, self.img_w, self.img_w)),
             *self.conv_stack,
             *self.dconv_stack,
-            self.last)
+            self.last,)
                                           )
-        
-        
+                
     def forward(self, x):
         self.pred = self.generator_model(x)
         return self.pred
     
         
-    
-        # self= to_device(self)
-
-    # def forward(self, x):
-    #     x = x.view(x.size(0), -1)  # Flatten
-    #     x = self.fc_stack(x)
-    #     x = x.view(-1, 1, self.img_w, self.img_w)  # Reshape to (batch_size, channels, height, width)
-    #     x = self.conv_stack(x)
-    #     x = self.dconv_stack(x)
-    #     x = self.last(x)
-    #     return x
-
     def dense_norm(self, units_in, units_out, dropout):
         return nn.Sequential(
             nn.Linear(units_in, units_out),
@@ -125,7 +112,7 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, nang, px):
         super(Discriminator, self).__init__()
-        self.main = nn.Sequential(
+        self.discriminator_model = to_device(nn.Sequential(
             nn.Conv2d(1, 16, (5, 5), stride=(2, 2)),
             nn.Conv2d(16, 16, (5, 5), stride=(1, 1)),
             nn.LeakyReLU(0.2),
@@ -149,9 +136,7 @@ class Discriminator(nn.Module):
             nn.Flatten(),
             # nn.Linear(nang * px * 128, 256),
             # nn.Linear(256, 128),
-        )
+        ))
         
-        self = to_device(self)
-
     def forward(self, input):
-        return self.main(input)
+        return self.discriminator_model(input)

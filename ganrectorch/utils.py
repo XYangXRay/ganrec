@@ -208,54 +208,54 @@ def fresnel_operator(px, py, pv, z, lambda0, upsample_scale):
     H = np.exp(1j*(2 * pi / lambda0) * z) * np.exp(1j * pi * lambda0 * z * (Fx**2 + Fy**2))
     return H.T
 
-class RECONmonitor:
-    def __init__(self, recon_target):
-        self.fig, self.axs = plt.subplots(2, 3, figsize=(23, 8))
-        self.recon_target = recon_target
-        if self.recon_target == 'tomo':
-            self.plot_txt = 'Sinogram'
-        elif self.recon_target == 'phase':
-            self.plot_txt = 'Intensity'
+# class RECONmonitor:
+#     def __init__(self, recon_target):
+#         self.fig, self.axs = plt.subplots(2, 3, figsize=(23, 8))
+#         self.recon_target = recon_target
+#         if self.recon_target == 'tomo':
+#             self.plot_txt = 'Sinogram'
+#         elif self.recon_target == 'phase':
+#             self.plot_txt = 'Intensity'
 
-    def initial_plot(self, img_input):
-        px, py = img_input.shape
-        self.im0 = self.axs[0, 0].imshow(img_input, cmap='gray')
-        self.axs[0, 0].set_title(self.plot_txt)
-        self.fig.colorbar(self.im0, ax=self.axs[0, 0])
-        self.axs[0, 0].set_aspect('equal','box')
-        self.im1 = self.axs[1, 0].imshow(img_input, cmap='jet')
-        self.tx1 = self.axs[1, 0].set_title('Difference of ' + self.plot_txt + ' for iteration 0')
-        self.fig.colorbar(self.im1, ax=self.axs[1, 0])
-        self.axs[0, 0].set_aspect('equal')
-        self.im2 = self.axs[0, 1].imshow(np.zeros((px, py)), cmap='gray')
-        self.fig.colorbar(self.im2, ax=self.axs[0, 1])
-        self.axs[0, 1].set_title('retrieved phase')
-        self.im3, = self.axs[1, 1].plot([], [], 'r-')
-        self.axs[1, 1].set_title('Generator loss')
-        self.axs[0, 2].set_title('plot profile of input')
-        self.axs[0, 2].plot(img_input[int(px/2), :], 'b-')
-        self.axs[0, 2].set_title('plot profile of input')
-        self.im4 = self.axs[1, 2].plot([], 'r-')
-        self.axs[1, 2].set_title('plot profile of recon')
+#     def initial_plot(self, img_input):
+#         px, py = img_input.shape
+#         self.im0 = self.axs[0, 0].imshow(img_input, cmap='gray')
+#         self.axs[0, 0].set_title(self.plot_txt)
+#         self.fig.colorbar(self.im0, ax=self.axs[0, 0])
+#         self.axs[0, 0].set_aspect('equal','box')
+#         self.im1 = self.axs[1, 0].imshow(img_input, cmap='jet')
+#         self.tx1 = self.axs[1, 0].set_title('Difference of ' + self.plot_txt + ' for iteration 0')
+#         self.fig.colorbar(self.im1, ax=self.axs[1, 0])
+#         self.axs[0, 0].set_aspect('equal')
+#         self.im2 = self.axs[0, 1].imshow(np.zeros((px, py)), cmap='gray')
+#         self.fig.colorbar(self.im2, ax=self.axs[0, 1])
+#         self.axs[0, 1].set_title('retrieved phase')
+#         self.im3, = self.axs[1, 1].plot([], [], 'r-')
+#         self.axs[1, 1].set_title('Generator loss')
+#         self.axs[0, 2].set_title('plot profile of input')
+#         self.axs[0, 2].plot(img_input[int(px/2), :], 'b-')
+#         self.axs[0, 2].set_title('plot profile of input')
+#         self.im4 = self.axs[1, 2].plot([], 'r-')
+#         self.axs[1, 2].set_title('plot profile of recon')
         
-        plt.tight_layout()
+#         plt.tight_layout()
 
-    def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss, save_path = None):
-        self.tx1.set_text('Difference of ' + self.plot_txt + ' for iteration {0}'.format(epoch))
-        vmax = np.max(img_diff)
-        vmin = np.min(img_diff)
-        self.im1.set_data(img_diff)
-        self.im1.set_clim(vmin, vmax)
-        self.im2.set_data(img_rec)
-        vmax = np.max(img_rec)
-        vmin = np.min(img_rec)
-        self.im2.set_clim(vmin, vmax)
-        self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
-        self.axs[1, 2].plot(img_rec[int(img_rec.shape[0]/2), :], 'r-')
-        plt.pause(0.1)
+#     def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss, save_path = None):
+#         self.tx1.set_text('Difference of ' + self.plot_txt + ' for iteration {0}'.format(epoch))
+#         vmax = np.max(img_diff)
+#         vmin = np.min(img_diff)
+#         self.im1.set_data(img_diff)
+#         self.im1.set_clim(vmin, vmax)
+#         self.im2.set_data(img_rec)
+#         vmax = np.max(img_rec)
+#         vmin = np.min(img_rec)
+#         self.im2.set_clim(vmin, vmax)
+#         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
+#         self.axs[1, 2].plot(img_rec[int(img_rec.shape[0]/2), :], 'r-')
+#         plt.pause(0.1)
 
-    def close_plot(self):
-        plt.close()
+#     def close_plot(self):
+#         plt.close()
 
 
 def tensor_to_np(tensor):
