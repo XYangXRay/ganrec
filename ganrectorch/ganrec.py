@@ -135,7 +135,7 @@ class GANtomo:
         # Reconstruction process monitor
         if self.recon_monitor:
             plot_x, plot_loss = [], []
-            recon_monitor = RECONmonitor('tomo', (self.nang, self.px))
+            recon_monitor = RECONmonitor('tomo', self.prj_input.cpu())
             # recon_monitor.display()
             # recon_monitor.initial_plot(self.prj_input.view(self.nang, self.px).cpu())
         ###########################################################################
@@ -153,9 +153,9 @@ class GANtomo:
             if (epoch + 1) % 100 == 0:
                 if self.recon_monitor:
                     prj_rec = step_result['prj_rec'].view(self.nang, self.px)
-                    prj_diff = tensor_to_np(torch.abs(prj_rec - self.prj_input.view((self.nang, self.px))).cpu())
-                    rec_plt = tensor_to_np(recon[epoch].view(self.px, self.px).cpu())
-                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, tensor_to_np(plot_loss.cpu()))
+                    prj_diff = torch.abs(prj_rec - self.prj_input.view((self.nang, self.px))).cpu()
+                    rec_plt = recon[epoch].view(self.px, self.px).cpu()
+                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss.cpu())
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
                                                                            step_result['d_loss'].item()))
@@ -164,5 +164,5 @@ class GANtomo:
             torch.save(self.discriminator.state_dict(), self.save_wpath+'discriminator.pth')
         if self.recon_monitor:
             recon_monitor.close_plot()
-        return recon[epoch].float()
+        return tensor_to_np(recon[epoch].cpu())
 

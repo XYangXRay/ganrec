@@ -5,7 +5,7 @@
         "conv_size": 3,
         "dropout": 0.25,
         "l1_ratio": 100,
-        "g_learning_rate": 1e-5,
+        "g_learning_rate": 1e-3,
         "d_learning_rate": 1e-5,
         "save_wpath": null,
         "init_wpath": null,

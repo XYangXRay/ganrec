@@ -14,6 +14,7 @@ class RadonTransform:
         theta = self.create_rotation_matrices(-self.angles)
         # Generate the affine grid for each angle
         grid = F.affine_grid(theta, [batch_size * len(self.angles), channels, height, width], align_corners=False)
+ 
         # Repeat the image for each angle
         image = self.data.repeat(len(self.angles), 1, 1, 1)
         # Apply the grid to the images
