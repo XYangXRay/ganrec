@@ -238,7 +238,6 @@ class RECONmonitor:
         self.im4 = self.axs[1, 2].plot([], 'r-')
         self.axs[1, 2].set_title('plot profile of recon')
         
-        
         plt.tight_layout()
 
     def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss, save_path = None):
@@ -292,14 +291,32 @@ def tensor_to_np(tensor):
                 return tensor.detach().cpu().numpy()[0,0,:,:]
             except:
                 return tensor.numpy()[0,0,:,:]
-
-def to_device(x, device):
+            
+            
+def to_device(data, device=None):
+    """
+    Move tensor(s) to chosen device
+    """
     if device is None:
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    try:
-        return x.to(device)
-    except:
-        return torch_reshape(x).to(device)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if isinstance(data, (list,tuple)):
+        return [to_device(x, device) for x in data]
+    data = data.to(device, non_blocking=True)
+    
+    # # If the data is a model and there are multiple GPUs, use DataParallel
+    # if isinstance(data, torch.nn.Module) and torch.cuda.device_count() > 1:
+    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    #     data = torch.nn.DataParallel(data)
+        
+    return data
+
+# def to_device(x, device):
+    # if device is None:
+    #     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # try:
+    #     return x.to(device)
+    # except:
+    #     return torch_reshape(x).to(device)
 
 
 def grid_generator(shape_x, shape_y, upscale = 1, ps = 5.5e-06):

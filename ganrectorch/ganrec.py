@@ -7,7 +7,7 @@ from torch.autograd import Variable
 from torchvision import transforms
 from ganrectorch.models import Generator, Discriminator
 from ganrectorch.propagators import RadonTransform
-from ganrectorch.utils import RECONmonitor, tensor_to_np
+from ganrectorch.utils import RECONmonitor, to_device, tensor_to_np
 
 # Load the configuration from the JSON file
 def load_config(filename):
@@ -52,8 +52,12 @@ class GANtomo:
         super(GANtomo, self).__init__()
         tomo_args = config['GANtomo']
         tomo_args.update(**kwargs)
-        self.prj_input = prj_input
-        self.angle = angle
+        self.nang, self.px = prj_input.shape
+        self.prj_input = torch.from_numpy(prj_input)
+        self.prj_input = self.prj_input.view(-1, 1, self.nang, self.px)
+        self.prj_input = to_device(self.prj_input)
+        self.angle = torch.from_numpy(angle)
+        self.angle = to_device(self.angle)
         self.iter_num = tomo_args['iter_num']
         self.conv_num = tomo_args['conv_num']
         self.conv_size = tomo_args['conv_size']
@@ -90,7 +94,8 @@ class GANtomo:
         self.generator_optimizer.zero_grad()
         self.discriminator_optimizer.zero_grad()
         recon = self.generator(prj)
-        recon = self.tfnor_tomo(recon)
+        # recon = self.tfnor_tomo(recon)
+        print(recon.shape)
         tomo_radon_obj = RadonTransform(recon, ang)
         prj_rec = tomo_radon_obj.forward()
         prj_rec = self.tfnor_tomo(prj_rec)
@@ -109,17 +114,15 @@ class GANtomo:
                 'd_loss': d_loss}
 
     def recon(self):
-        nang, px = self.prj_input.shape
-        prj = torch.from_numpy(self.prj_input)
-        prj = prj.view(-1, 1, nang, px)
+        
         # prj = self.tfnor_tomo(prj)
-        ang = torch.from_numpy(self.angle)
+        
         self.make_model()
         if self.init_wpath:
             self.generator.load_state_dict(torch.load(self.init_wpath+'generator.pth'))
             print('generator is initialized')
             self.discriminator.load_state_dict(torch.load(self.init_wpath+'discriminator.pth'))
-        recon = torch.zeros((self.iter_num, 1, px, px))
+        recon = torch.zeros((self.iter_num, 1, self.px, self.px))
         gen_loss = torch.zeros((self.iter_num))
 
         ###########################################################################
@@ -127,14 +130,14 @@ class GANtomo:
         if self.recon_monitor:
             plot_x, plot_loss = [], []
             recon_monitor = RECONmonitor('tomo')
-            recon_monitor.initial_plot(self.prj_input)
+            recon_monitor.initial_plot(self.prj_input.view(self.nang, self.px).cpu())
         ###########################################################################
         for epoch in range(self.iter_num):
 
             ###########################################################################
             ## Call the rconstruction step
 
-            step_result = self.recon_step(prj, ang)
+            step_result = self.recon_step(self.prj_input, self.angle)
             recon[epoch, :, :, :] = step_result['recon']
             gen_loss[epoch] = step_result['g_loss']
             ###########################################################################
@@ -142,10 +145,10 @@ class GANtomo:
             plot_loss = gen_loss[:epoch + 1]
             if (epoch + 1) % 100 == 0:
                 if self.recon_monitor:
-                    prj_rec = step_result['prj_rec'].view(nang, px)
-                    prj_diff = tensor_to_np(torch.abs(prj_rec - prj.view((nang, px))))
-                    rec_plt = tensor_to_np(recon[epoch].view(px, px))
-                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, tensor_to_np(plot_loss))
+                    prj_rec = step_result['prj_rec'].view(self.nang, self.px)
+                    prj_diff = tensor_to_np(torch.abs(prj_rec - self.prj.view((self.nang, self.px))).cpu())
+                    rec_plt = tensor_to_np(recon[epoch].view(self.px, self.px).cpu())
+                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, tensor_to_np(plot_loss.cpu()))
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
                                                                            step_result['d_loss'].item()))
