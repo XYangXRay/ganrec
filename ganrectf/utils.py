@@ -3,6 +3,7 @@ import numpy as np
 from numpy.fft import fftfreq
 import tifffile
 import matplotlib.pyplot as plt
+from IPython.display import display, clear_output
 
 
 def nor_tomo(img):
@@ -101,8 +102,11 @@ class RECONmonitor:
         vmin = np.min(img_rec)
         self.im2.set_clim(vmin, vmax)
         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
-        # plt.tight_layout()
+        plt.tight_layout()
+        clear_output(wait=True)
+        display(self.fig)
         plt.pause(0.1)
+
     def close_plot(self):
         plt.close()
 
