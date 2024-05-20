@@ -4,7 +4,9 @@ from numpy.fft import fftfreq
 import torch
 import tifffile
 import matplotlib.pyplot as plt
-
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from IPython.display import display
 
 def nor_tomo(img):
     mean_tmp = np.mean(img)
@@ -64,48 +66,149 @@ def ffactor(px, energy, z, pv):
     return h
 
 
+# class RECONmonitor:
+#     def __init__(self, recon_target):
+#         self.fig, self.axs = plt.subplots(2, 2, figsize=(16, 8))
+#         self.recon_target = recon_target
+#         if self.recon_target == 'tomo':
+#             self.plot_txt = 'Sinogram'
+#         elif self.recon_target == 'phase':
+#             self.plot_txt = 'Intensity'
+      
+
+#     def initial_plot(self, img_input):
+#         _, px = img_input.shape
+#         self.im0 = self.axs[0, 0].imshow(img_input, cmap='gray')
+#         self.axs[0, 0].set_title(self.plot_txt)
+#         self.fig.colorbar(self.im0, ax=self.axs[0, 0])
+#         self.axs[0, 0].set_aspect('equal','box')
+#         self.im1 = self.axs[1, 0].imshow(img_input, cmap='jet')
+#         self.tx1 = self.axs[1, 0].set_title('Difference of ' + self.plot_txt + ' for iteration 0')
+#         self.fig.colorbar(self.im1, ax=self.axs[1, 0])
+#         self.axs[1, 0].set_aspect('equal')
+#         self.im2 = self.axs[0, 1].imshow(np.zeros((px, px)), cmap='gray')
+#         self.fig.colorbar(self.im2, ax=self.axs[0, 1])
+#         self.axs[0, 1].set_title('Reconstruction')
+#         self.im3, = self.axs[1, 1].plot([], [], 'r-')
+#         self.axs[1, 1].set_title('Generator loss')
+#         plt.tight_layout()
+
+#     def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss):
+#         self.tx1.set_text('Difference of ' + self.plot_txt + ' for iteration {0}'.format(epoch))
+#         vmax = np.max(img_diff)
+#         vmin = np.min(img_diff)
+#         self.im1.set_data(img_diff)
+#         self.im1.set_clim(vmin, vmax)
+#         self.im2.set_data(img_rec)
+#         vmax = np.max(img_rec)
+#         vmin = np.min(img_rec)
+#         self.im2.set_clim(vmin, vmax)
+#         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
+#         # plt.tight_layout()
+#         plt.pause(0.1)
+#     def close_plot(self):
+#         plt.close()
+
+
+# class RECONmonitor:
+#     def __init__(self, recon_target, img_shape):
+#         self.fig = make_subplots(rows=2, cols=2, 
+#                                  subplot_titles=["", "Reconstruction", "Difference of", "Generator loss"],
+#                                  specs=[[{"type": "heatmap"}, {"type": "heatmap"}],
+#                                         [{"type": "heatmap"}, {"type": "scatter"}]])
+        
+#         self.recon_target = recon_target
+#         if self.recon_target == 'tomo':
+#             self.plot_txt = 'Sinogram'
+#         elif self.recon_target == 'phase':
+#             self.plot_txt = 'Intensity'
+        
+#         # Initial dummy data for the plots
+#         dummy_img = np.zeros(img_shape)
+#         dummy_loss = np.zeros(1)
+
+#         # Add initial traces with dummy data
+#         self.fig.add_trace(go.Heatmap(z=dummy_img, colorscale='gray'), row=1, col=1)
+#         self.fig.add_trace(go.Heatmap(z=dummy_img, colorscale='gray'), row=1, col=2)
+#         self.fig.add_trace(go.Heatmap(z=dummy_img, colorscale='jet'), row=2, col=1)
+#         self.fig.add_trace(go.Scatter(x=dummy_loss, y=dummy_loss, mode='lines', line=dict(color='red')), row=2, col=2)
+
+#         # Update titles and layout
+#         self.fig.update_xaxes(title_text=self.plot_txt, row=1, col=1)
+#         self.fig.update_xaxes(title_text='Reconstruction', row=1, col=2)
+#         self.fig.update_xaxes(title_text='Difference of ' + self.plot_txt + ' for iteration 0', row=2, col=1)
+#         self.fig.update_xaxes(title_text='Generator loss', row=2, col=2)
+
+#         self.fig.update_layout(height=800, width=1200, title_text="RECONmonitor Visualization", showlegend=False)
+#         self.fig_widget = go.FigureWidget(self.fig)
+
+#     def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss):
+#         # Update difference plot
+#         with self.fig_widget.batch_update():
+#             self.fig_widget.data[2].z = img_diff
+#             self.fig_widget.layout.annotations[2].text = f'Difference of {self.plot_txt} for iteration {epoch}'
+        
+#             # Update reconstruction plot
+#             self.fig_widget.data[1].z = img_rec
+        
+#             # Update loss plot
+#             self.fig_widget.data[3].x = plot_x
+#             self.fig_widget.data[3].y = plot_loss
+
+#     def display(self):
+#         display(self.fig_widget)
+
+
+
+
+      
 class RECONmonitor:
-    def __init__(self, recon_target):
-        self.fig, self.axs = plt.subplots(2, 2, figsize=(16, 8))
+    def __init__(self, recon_target, img_shape):
+        self.fig = make_subplots(rows=2, cols=2, 
+                                 subplot_titles=["", "Reconstruction", "Difference of", "Generator loss"],
+                                 specs=[[{"type": "heatmap"}, {"type": "heatmap"}],
+                                        [{"type": "heatmap"}, {"type": "scatter"}]])
+        
         self.recon_target = recon_target
         if self.recon_target == 'tomo':
             self.plot_txt = 'Sinogram'
         elif self.recon_target == 'phase':
             self.plot_txt = 'Intensity'
-      
+        
+        # Initial dummy data for the plots
+        dummy_img = np.zeros(img_shape)
+        dummy_loss = np.zeros(1)
 
-    def initial_plot(self, img_input):
-        _, px = img_input.shape
-        self.im0 = self.axs[0, 0].imshow(img_input, cmap='gray')
-        self.axs[0, 0].set_title(self.plot_txt)
-        self.fig.colorbar(self.im0, ax=self.axs[0, 0])
-        self.axs[0, 0].set_aspect('equal','box')
-        self.im1 = self.axs[1, 0].imshow(img_input, cmap='jet')
-        self.tx1 = self.axs[1, 0].set_title('Difference of ' + self.plot_txt + ' for iteration 0')
-        self.fig.colorbar(self.im1, ax=self.axs[1, 0])
-        self.axs[1, 0].set_aspect('equal')
-        self.im2 = self.axs[0, 1].imshow(np.zeros((px, px)), cmap='gray')
-        self.fig.colorbar(self.im2, ax=self.axs[0, 1])
-        self.axs[0, 1].set_title('Reconstruction')
-        self.im3, = self.axs[1, 1].plot([], [], 'r-')
-        self.axs[1, 1].set_title('Generator loss')
-        plt.tight_layout()
+        # Add initial traces with dummy data
+        self.fig.add_trace(go.Heatmap(z=dummy_img, colorscale='gray'), row=1, col=1)
+        self.fig.add_trace(go.Heatmap(z=dummy_img, colorscale='gray'), row=1, col=2)
+        self.fig.add_trace(go.Heatmap(z=dummy_img, colorscale='jet'), row=2, col=1)
+        self.fig.add_trace(go.Scatter(x=dummy_loss, y=dummy_loss, mode='lines', line=dict(color='red')), row=2, col=2)
+
+        # Update titles and layout
+        self.fig.update_xaxes(title_text=self.plot_txt, row=1, col=1)
+        self.fig.update_xaxes(title_text='Reconstruction', row=1, col=2)
+        self.fig.update_xaxes(title_text='Difference of ' + self.plot_txt + ' for iteration 0', row=2, col=1)
+        self.fig.update_xaxes(title_text='Generator loss', row=2, col=2)
+
+        self.fig.update_layout(height=800, width=1200, title_text="RECONmonitor Visualization", showlegend=False)
 
     def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss):
-        self.tx1.set_text('Difference of ' + self.plot_txt + ' for iteration {0}'.format(epoch))
-        vmax = np.max(img_diff)
-        vmin = np.min(img_diff)
-        self.im1.set_data(img_diff)
-        self.im1.set_clim(vmin, vmax)
-        self.im2.set_data(img_rec)
-        vmax = np.max(img_rec)
-        vmin = np.min(img_rec)
-        self.im2.set_clim(vmin, vmax)
-        self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
-        # plt.tight_layout()
-        plt.pause(0.1)
+        # Update difference plot
+        self.fig.update_traces(z=img_diff, selector=dict(type='heatmap', row=2, col=1))
+        self.fig.update_xaxes(title_text='Difference of ' + self.plot_txt + ' for iteration {0}'.format(epoch), row=2, col=1)
+        
+        # Update reconstruction plot
+        self.fig.update_traces(z=img_rec, selector=dict(type='heatmap', row=1, col=2))
+        
+        # Update loss plot
+        self.fig.update_traces(x=plot_x, y=plot_loss, selector=dict(type='scatter', row=2, col=2))
+        
+        self.fig.show()
+
     def close_plot(self):
-        plt.close()
+        # Plotly doesn't need an explicit close method for the figure
+        pass
 
 # Draw a annular shape mask to only inlcude the feature in the annular area
 def annular_mask(img, inner_diameter, outer_diameter):

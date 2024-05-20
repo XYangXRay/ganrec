@@ -78,7 +78,7 @@ class Generator(nn.Module):
     def dense_norm(self, units_in, units_out, dropout):
         return nn.Sequential(
             nn.Linear(units_in, units_out),
-            # nn.BatchNorm1d(units_out),
+            nn.LayerNorm(units_out),
             nn.ReLU(),
             nn.Dropout(dropout)
         )
@@ -89,7 +89,7 @@ class Generator(nn.Module):
                       out_channels, 
                       kernel_size, stride, 
                       padding='same',),
-            # nn.BatchNorm2d(out_channels),
+            nn.LayerNorm([out_channels, self.img_w, self.img_w]),
             nn.ReLU()
         )
 
@@ -103,7 +103,7 @@ class Generator(nn.Module):
                                stride, 
                                padding=padding, 
                                output_padding=output_padding),
-            # nn.BatchNorm2d(out_channels),
+            nn.LayerNorm([out_channels, self.img_w, self.img_w]),
             nn.ReLU()
         )
 

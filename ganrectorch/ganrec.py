@@ -135,8 +135,9 @@ class GANtomo:
         # Reconstruction process monitor
         if self.recon_monitor:
             plot_x, plot_loss = [], []
-            recon_monitor = RECONmonitor('tomo')
-            recon_monitor.initial_plot(self.prj_input.view(self.nang, self.px).cpu())
+            recon_monitor = RECONmonitor('tomo', (self.nang, self.px))
+            # recon_monitor.display()
+            # recon_monitor.initial_plot(self.prj_input.view(self.nang, self.px).cpu())
         ###########################################################################
         for epoch in range(self.iter_num):
 
