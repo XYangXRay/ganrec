@@ -37,8 +37,8 @@ def l2_loss(img1, img2):
     return torch.pow(torch.mean(torch.abs(img1-img2)), 2)
 
 def generator_loss(fake_output, img_output, pred, l1_ratio):
-    gen_loss = F.binary_cross_entropy_with_logits(fake_output, torch.ones_like(fake_output)) \
-               + l1_loss(img_output, pred) * l1_ratio
+    gen_loss = F.binary_cross_entropy_with_logits(fake_output, 
+                                                  torch.ones_like(fake_output)) + l1_loss(img_output, pred) * l1_ratio
     return gen_loss
 
 def tfnor_phase(img):
@@ -86,18 +86,25 @@ class GANtomo:
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
         self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
 
-    def tfnor_tomo(self, img):
-        img = transforms.Normalize((0.5,), (0.5,))(img)
-        return img
+    def nor_tomo(self, data):
+        min_val = torch.min(data)
+        max_val = torch.max(data)
+    
+    # Apply min-max normalizatio
+        normalized_data = (data - min_val) / (max_val - min_val)
+    
+        return normalized_data
+        # img = transforms.Normalize((0.5,), (0.5,))(img)
+        # return img
 
     def recon_step(self, prj, ang):
         self.generator_optimizer.zero_grad()
         self.discriminator_optimizer.zero_grad()
         recon = self.generator(prj)
-        # recon = self.tfnor_tomo(recon)
+        recon = self.nor_tomo(recon)
         tomo_radon_obj = RadonTransform(recon, ang)
         prj_rec = tomo_radon_obj.forward()
-        prj_rec = self.tfnor_tomo(prj_rec)
+        prj_rec = self.nor_tomo(prj_rec)
         real_output = self.discriminator(prj)
         fake_output = self.discriminator(prj_rec)
         g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
@@ -114,7 +121,7 @@ class GANtomo:
 
     def recon(self):
         
-        # prj = self.tfnor_tomo(prj)
+        self.prj_input = self.nor_tomo(self.prj_input)
         
         self.make_model()
         if self.init_wpath:
