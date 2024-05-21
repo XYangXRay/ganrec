@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.init as init
 import pandas as pd
 from ganrectorch.utils import to_device
-# from ganrectorch.ganrec_dataloader import *
 
 
 class Flatten(nn.Module):

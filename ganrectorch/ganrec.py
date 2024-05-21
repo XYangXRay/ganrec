@@ -96,7 +96,7 @@ class GANtomo:
         return normalized_data
         # img = transforms.Normalize((0.5,), (0.5,))(img)
         # return img
-
+    @torch.compile()
     def recon_step(self, prj, ang):
         self.generator_optimizer.zero_grad()
         self.discriminator_optimizer.zero_grad()
