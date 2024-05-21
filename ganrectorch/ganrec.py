@@ -24,6 +24,7 @@ def load_config(filename):
 # Use the configuration
 config = load_config('config.json')
 
+@torch.compile()
 def discriminator_loss(real_output, fake_output):
     real_loss = F.binary_cross_entropy_with_logits(real_output, torch.ones_like(real_output))
     fake_loss = F.binary_cross_entropy_with_logits(fake_output, torch.zeros_like(fake_output))
@@ -36,11 +37,13 @@ def l1_loss(img1, img2):
 def l2_loss(img1, img2):
     return torch.pow(torch.mean(torch.abs(img1-img2)), 2)
 
+@torch.compile()
 def generator_loss(fake_output, img_output, pred, l1_ratio):
     gen_loss = F.binary_cross_entropy_with_logits(fake_output, 
                                                   torch.ones_like(fake_output)) + l1_loss(img_output, pred) * l1_ratio
     return gen_loss
 
+@torch.compile()
 def tfnor_phase(img):
     img = (img - img.mean()) / img.std()
     img = img / torch.max(img)
@@ -136,8 +139,6 @@ class GANtomo:
         if self.recon_monitor:
             plot_x, plot_loss = [], []
             recon_monitor = RECONmonitor('tomo', self.prj_input.cpu())
-            # recon_monitor.display()
-            # recon_monitor.initial_plot(self.prj_input.view(self.nang, self.px).cpu())
         ###########################################################################
         for epoch in range(self.iter_num):
 
