@@ -59,15 +59,14 @@ class Generator(nn.Module):
 
         self.last = self.conv2d_norm(conv_num, output_num, 3, 1)
         
-        self.generator_model = to_device(nn.Sequential(
+        self.generator_model = nn.Sequential(
             Flatten(),
             # Transpose(),
             *self.fc_stack,
             Reshape((-1, 1, self.img_w, self.img_w)),
             *self.conv_stack,
             *self.dconv_stack,
-            self.last,)
-                                          )
+            self.last)
                 
     def forward(self, x):
         self.pred = self.generator_model(x)
@@ -111,7 +110,7 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, nang, px):
         super(Discriminator, self).__init__()
-        self.discriminator_model = to_device(nn.Sequential(
+        self.discriminator_model = nn.Sequential(
             nn.Conv2d(1, 16, (5, 5), stride=(2, 2)),
             nn.Conv2d(16, 16, (5, 5), stride=(1, 1)),
             nn.LeakyReLU(0.2),
@@ -135,7 +134,7 @@ class Discriminator(nn.Module):
             nn.Flatten(),
             # nn.Linear(nang * px * 128, 256),
             # nn.Linear(256, 128),
-        ))
+        )
         
     def forward(self, input):
         return self.discriminator_model(input)

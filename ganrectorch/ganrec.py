@@ -78,27 +78,24 @@ class GANtomo:
         self.discriminator_optimizer = None
 
     def make_model(self):
-        self.generator = Generator(self.prj_input.shape[2],
+        self.generator = to_device(Generator(self.prj_input.shape[2],
                                    self.prj_input.shape[3],
                                    self.conv_num,
                                    self.conv_size,
                                    self.dropout,
-                                   1)
-        self.discriminator = Discriminator(self.prj_input.shape[2],
-                                           self.prj_input.shape[3])
+                                   1))
+        self.discriminator = to_device(Discriminator(self.prj_input.shape[2],
+                                           self.prj_input.shape[3]))
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
         self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
-
+        
+    @torch.compile()
     def nor_tomo(self, data):
         min_val = torch.min(data)
         max_val = torch.max(data)
-    
-    # Apply min-max normalizatio
         normalized_data = (data - min_val) / (max_val - min_val)
-    
         return normalized_data
-        # img = transforms.Normalize((0.5,), (0.5,))(img)
-        # return img
+
     @torch.compile()
     def recon_step(self, prj, ang):
         self.generator_optimizer.zero_grad()
@@ -122,11 +119,11 @@ class GANtomo:
                 'g_loss': g_loss,
                 'd_loss': d_loss}
 
-    def recon(self):
-        
-        self.prj_input = self.nor_tomo(self.prj_input)
-        
+    def recon(self):  
+             
+        self.prj_input = self.nor_tomo(self.prj_input)    
         self.make_model()
+        
         if self.init_wpath:
             self.generator.load_state_dict(torch.load(self.init_wpath+'generator.pth'))
             print('generator is initialized')
