@@ -1,7 +1,5 @@
-import torch
 import torch.nn as nn
 import torch.nn.init as init
-import pandas as pd
 from ganrectorch.utils import to_device
 
 
@@ -104,6 +102,7 @@ class Generator(nn.Module):
             nn.LayerNorm([out_channels, self.img_w, self.img_w]),
             nn.ReLU()
         )
+
 
 
 class Discriminator(nn.Module):

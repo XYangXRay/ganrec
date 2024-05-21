@@ -3,7 +3,8 @@ import json
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
-from torch.autograd import Variable
+# from torch.autograd import Variable
+from torch.cuda.amp import GradScaler, autocast
 from torchvision import transforms
 from ganrectorch.models import Generator, Discriminator
 from ganrectorch.propagators import RadonTransform
@@ -24,16 +25,16 @@ def load_config(filename):
     with open(config_path, 'r') as file:
         config = json.load(file)
     return config
-
 # Use the configuration
 config = load_config('config.json')
 
-# @torch.compile()
+@torch.compile()
 def discriminator_loss(real_output, fake_output):
-    real_loss = F.binary_cross_entropy_with_logits(real_output, torch.ones_like(real_output))
-    fake_loss = F.binary_cross_entropy_with_logits(fake_output, torch.zeros_like(fake_output))
+    real_loss = torch.mean(torch.nn.BCEWithLogitsLoss()(real_output, torch.ones_like(real_output)))
+    fake_loss = torch.mean(torch.nn.BCEWithLogitsLoss()(fake_output, torch.zeros_like(fake_output)))
     total_loss = real_loss + fake_loss
     return total_loss
+
 # @torch.compile()
 def l1_loss(img1, img2):
     return torch.mean(torch.abs(img1 - img2))
@@ -43,16 +44,32 @@ def l2_loss(img1, img2):
     return torch.pow(torch.mean(torch.abs(img1-img2)), 2)
 
 # @torch.compile()
+
 def generator_loss(fake_output, img_output, pred, l1_ratio):
-    gen_loss = F.binary_cross_entropy_with_logits(fake_output, 
-                                                  torch.ones_like(fake_output)) + l1_loss(img_output, pred) * l1_ratio
-    return gen_loss
+    #with autograd
+    return torch.mean(torch.nn.BCEWithLogitsLoss()(fake_output, 
+                                                   torch.ones_like(fake_output))) + l1_ratio * torch.mean(torch.abs(img_output - pred))
+
+# def generator_loss(fake_output, img_output, pred, l1_ratio):
+#     gen_loss = F.binary_cross_entropy_with_logits(fake_output, 
+#                                                   torch.ones_like(fake_output)) + l1_loss(img_output, pred) * l1_ratio
+#     return gen_loss
 
 # @torch.compile()
 def tfnor_phase(img):
     img = (img - img.mean()) / img.std()
     img = img / torch.max(img)
     return img
+
+class NormalizeLayer(nn.Module):
+    def __init__(self):
+        super(NormalizeLayer, self).__init__()
+
+    def forward(self, data):
+        min_val = torch.min(data)
+        max_val = torch.max(data)
+        normalized_data = (data - min_val) / (max_val - min_val)
+        return normalized_data
 
 
 class GANtomo:
@@ -61,6 +78,7 @@ class GANtomo:
         tomo_args = config['GANtomo']
         tomo_args.update(**kwargs)
         torch_configures()
+        self.scaler = GradScaler()
         self._input_data(prj_input, angle)
         self.iter_num = tomo_args['iter_num']
         self.conv_num = tomo_args['conv_num']
@@ -110,28 +128,59 @@ class GANtomo:
         normalized_data = (data - min_val) / (max_val - min_val)
         return normalized_data
 
+    # @torch.compile()
+    # def recon_step(self, prj, ang):
+    #     self.generator_optimizer.zero_grad()
+    #     self.discriminator_optimizer.zero_grad()
+    #     recon = self.generator(prj)
+    #     recon = self.nor_tomo(recon)
+    #     prj_rec = self.radon(recon, ang)
+    #     # print(f"prj_rec is: {prj_rec}")
+    #     prj_rec = self.nor_tomo(prj_rec)
+    #     real_output = self.discriminator(prj)
+    #     fake_output = self.discriminator(prj_rec)
+    #     g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
+    #     d_loss = discriminator_loss(real_output, fake_output)
+    #     g_loss.backward(retain_graph=True)
+    #     d_loss.backward()
+    #     self.generator_optimizer.step()
+    #     self.discriminator_optimizer.step()
+
+    #     return {'recon': recon,
+    #             'prj_rec': prj_rec,
+    #             'g_loss': g_loss,
+    #             'd_loss': d_loss}
+
+
     @torch.compile()
     def recon_step(self, prj, ang):
         self.generator_optimizer.zero_grad()
         self.discriminator_optimizer.zero_grad()
-        recon = self.generator(prj)
-        recon = self.nor_tomo(recon)
-        prj_rec = self.radon(recon, ang)
-        # print(f"prj_rec is: {prj_rec}")
-        prj_rec = self.nor_tomo(prj_rec)
-        real_output = self.discriminator(prj)
-        fake_output = self.discriminator(prj_rec)
-        g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
-        d_loss = discriminator_loss(real_output, fake_output)
-        g_loss.backward(retain_graph=True)
-        d_loss.backward()
-        self.generator_optimizer.step()
-        self.discriminator_optimizer.step()
+        with autocast():
+            recon = self.generator(prj)
+            recon = self.nor_tomo(recon)
+            prj_rec = self.radon(recon, ang)
+            prj_rec = self.nor_tomo(prj_rec)
+            real_output = self.discriminator(prj)
+            fake_output = self.discriminator(prj_rec)
+            g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
+            d_loss = discriminator_loss(real_output, fake_output)
+        
+        # Backward pass with gradient scaling
+        self.scaler.scale(g_loss).backward(retain_graph=True)
+        self.scaler.scale(d_loss).backward()
+        
+        # Optimizer step with gradient scaling
+        self.scaler.step(self.generator_optimizer)
+        self.scaler.step(self.discriminator_optimizer)
+        self.scaler.update()
 
-        return {'recon': recon,
-                'prj_rec': prj_rec,
-                'g_loss': g_loss,
-                'd_loss': d_loss}
+        return {
+            'recon': recon,
+            'prj_rec': prj_rec,
+            'g_loss': g_loss,
+            'd_loss': d_loss
+        }
 
     def recon(self):  
         self.make_model()

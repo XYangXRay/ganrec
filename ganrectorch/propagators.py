@@ -4,36 +4,6 @@ import torch.nn.functional as F
 import torch.fft
 import torchvision.transforms as transforms
 
-# class RadonTransform:
-#     def __init__(self, data, angles):
-#         self.data = data
-#         self.angles = angles
-#     # @torch.compile
-#     def forward(self):
-#         batch_size, channels, height, width = self.data.shape
-#         # Create a grid of angles for the rotation matrices
-#         theta = self.create_rotation_matrices(-self.angles)
-#         # Generate the affine grid for each angle
-#         grid = F.affine_grid(theta, [batch_size * len(self.angles), channels, height, width], align_corners=False)
- 
-#         # Repeat the image for each angle
-#         image = self.data.repeat(len(self.angles), 1, 1, 1)
-#         # Apply the grid to the images
-#         rotated_images = F.grid_sample(image, grid, mode='bilinear', align_corners=False)
-#         # Sum along the projection direction (height)
-#         radon_projections = torch.sum(rotated_images, dim=2)
-#         # Reshape the result to have the correct batch size
-#         radon_projections = radon_projections.view(batch_size, len(self.angles), width)
-#         return radon_projections
-#     # @torch.compile
-#     def create_rotation_matrices(self, angles):
-#         cos_vals = torch.cos(angles)
-#         sin_vals = torch.sin(angles)
-#         zero = torch.zeros_like(cos_vals)
-#         # one = torch.ones_like(cos_vals)
-#         theta = torch.stack([cos_vals, -sin_vals, zero, sin_vals, cos_vals, zero], dim=1).view(-1, 2, 3)
-#         return theta
-
 class RadonTransform(nn.Module):
     def __init__(self, data, angles):
         super(RadonTransform, self).__init__()
