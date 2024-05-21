@@ -106,7 +106,6 @@ class Generator(nn.Module):
         )
 
 
-
 class Discriminator(nn.Module):
     def __init__(self, nang, px):
         super(Discriminator, self).__init__()
@@ -132,8 +131,10 @@ class Discriminator(nn.Module):
             nn.Dropout(0.2),
 
             nn.Flatten(),
-            # nn.Linear(nang * px * 128, 256),
-            # nn.Linear(256, 128),
+            # nn.LazyLinear(512),
+            # nn.LazyLinear(256),
+            # nn.LazyLinear(256),
+            
         )
         
     def forward(self, input):

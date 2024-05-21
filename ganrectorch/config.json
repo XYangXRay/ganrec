@@ -6,7 +6,7 @@
         "dropout": 0.25,
         "l1_ratio": 100,
         "g_learning_rate": 1e-3,
-        "d_learning_rate": 1e-5,
+        "d_learning_rate": 1e-4,
         "save_wpath": null,
         "init_wpath": null,
         "init_model": false,

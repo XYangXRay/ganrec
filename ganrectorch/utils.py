@@ -170,9 +170,6 @@ def save_tiff(image, filename):
     tifffile.imwrite(filename, image)
     
 
-
-
-
 def nor_phase(img):
     mean_tmp = np.mean(img)
     std_tmp = np.std(img)
@@ -316,21 +313,40 @@ def tensor_to_np(tensor):
                 return tensor.numpy()[0,0,:,:]
             
             
+# def to_device(data, device=None):
+#     """
+#     Move tensor(s) to chosen device
+#     """
+#     if device is None:
+#         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#     if isinstance(data, (list,tuple)):
+#         return [to_device(x, device) for x in data]
+#     data = data.to(device, non_blocking=True)
+    
+#     # # If the data is a model and there are multiple GPUs, use DataParallel
+#     # if isinstance(data, torch.nn.Module) and torch.cuda.device_count() > 1:
+#     #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+#     #     data = torch.nn.DataParallel(data)
+        
+#     return data
+
 def to_device(data, device=None):
     """
-    Move tensor(s) to chosen device
+    Move tensor(s) and model(s) to the chosen device.
     """
     if device is None:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    if isinstance(data, (list,tuple)):
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    if isinstance(data, (list, tuple)):
         return [to_device(x, device) for x in data]
+    
     data = data.to(device, non_blocking=True)
     
-    # # If the data is a model and there are multiple GPUs, use DataParallel
+    # If the data is a model and there are multiple GPUs, use DataParallel
     # if isinstance(data, torch.nn.Module) and torch.cuda.device_count() > 1:
-    #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    #     print("Using", torch.cuda.device_count(), "GPUs!")
     #     data = torch.nn.DataParallel(data)
-        
+    
     return data
 
 # def to_device(x, device):
@@ -1183,7 +1199,12 @@ def visualize_interact(pure = []):
     import ipywidgets as widgets
     from ipywidgets import interact
     from IPython.display import display
-    interact(visualize, pure = widgets.fixed(pure), show_or_plot = widgets.Dropdown(options=['show', 'plot'], value='show', description='Show or plot:'), rows = widgets.IntSlider(min=1, max=10, step=1, value=1, description='Rows:'), cols = widgets.IntSlider(min=1, max=10, step=1, value=3, description='Columns:'))
+    interact(visualize, pure = widgets.fixed(pure), 
+             show_or_plot = widgets.Dropdown(options=['show', 'plot'], 
+                                             value='show', 
+                                             description='Show or plot:'), 
+             rows = widgets.IntSlider(min=1, max=10, step=1, value=1, description='Rows:'), 
+             cols = widgets.IntSlider(min=1, max=10, step=1, value=3, description='Columns:'))
      
 def plot_pandas(df, column_range = None, x_column = 'abs_ratio', titles = None):
     """
