@@ -34,7 +34,7 @@ class RadonTransform(nn.Module):
         radon_projections = torch.sum(rotated_images, dim=2)
 
         # Reshape the result to have the correct batch size
-        radon_projections = radon_projections.view(batch_size, len(angles), width)
+        radon_projections = radon_projections.view(batch_size, 1, len(angles), width)
 
         return radon_projections
 

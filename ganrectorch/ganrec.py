@@ -13,6 +13,7 @@ from ganrectorch.utils import RECONmonitor, to_device, tensor_to_np
 def torch_configures():
     torch.backends.cudnn.benchmark = True
     torch.set_float32_matmul_precision('high')
+    torch._dynamo.config.cache_size_limit = 32
 
 # Load the configuration from the JSON file
 def load_config(filename):
@@ -116,40 +117,28 @@ class GANtomo:
                                    self.conv_size,
                                    self.dropout,
                                    1)
-        self.discriminator = Discriminator(self.prj_input.shape[2],
-                                           self.prj_input.shape[3])
+        self.discriminator = Discriminator()
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
         self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
         
     @torch.compile()
     def nor_tomo(self, data):
-        min_val = torch.min(data)
-        max_val = torch.max(data)
-        normalized_data = (data - min_val) / (max_val - min_val)
-        return normalized_data
 
-    # @torch.compile()
-    # def recon_step(self, prj, ang):
-    #     self.generator_optimizer.zero_grad()
-    #     self.discriminator_optimizer.zero_grad()
-    #     recon = self.generator(prj)
-    #     recon = self.nor_tomo(recon)
-    #     prj_rec = self.radon(recon, ang)
-    #     # print(f"prj_rec is: {prj_rec}")
-    #     prj_rec = self.nor_tomo(prj_rec)
-    #     real_output = self.discriminator(prj)
-    #     fake_output = self.discriminator(prj_rec)
-    #     g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
-    #     d_loss = discriminator_loss(real_output, fake_output)
-    #     g_loss.backward(retain_graph=True)
-    #     d_loss.backward()
-    #     self.generator_optimizer.step()
-    #     self.discriminator_optimizer.step()
 
-    #     return {'recon': recon,
-    #             'prj_rec': prj_rec,
-    #             'g_loss': g_loss,
-    #             'd_loss': d_loss}
+    # Calculate the mean and standard deviation of the data
+        mean = data.mean()
+        std = data.std()
+
+    # Standardize the data (z-score normalization)
+        standardized_data = (data - mean) / std
+
+    # Find the minimum value in the standardized data
+        standardized_min = standardized_data.min()
+
+    # Shift the data to start from 0
+        shifted_data = standardized_data - standardized_min
+
+        return shifted_data
 
 
     @torch.compile()
@@ -158,9 +147,11 @@ class GANtomo:
         self.discriminator_optimizer.zero_grad()
         with autocast():
             recon = self.generator(prj)
-            recon = self.nor_tomo(recon)
+            recon = self.nor_tomo(recon) 
             prj_rec = self.radon(recon, ang)
             prj_rec = self.nor_tomo(prj_rec)
+            # print(f"prj shape: {prj.shape}")
+            # print(f"prj_rec shape: {prj_rec.shape}")
             real_output = self.discriminator(prj)
             fake_output = self.discriminator(prj_rec)
             g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)

@@ -24,6 +24,37 @@ class Transpose(nn.Module):
 
     def forward(self, x):
         return x.view(-1, 1)
+    
+class DynamicLinear(nn.Module):
+    def __init__(self, output_size):
+        super(DynamicLinear, self).__init__()
+        self.output_size = output_size
+        self.linear_layer = None  # Initialize as None to create it later
+
+    def forward(self, x):
+        if self.linear_layer is None:
+            input_size = x.size(-1)  # Get the size of the input features
+            self.linear_layer = nn.Linear(input_size, self.output_size)
+
+        return self.linear_layer(x)
+
+class Dense(nn.Module):
+    def __init__(self, output_size, dropout):
+        super(Dense, self).__init__()
+        self.output_size = output_size
+        self.dropout = dropout
+        self.dense_norm_layer = None  # Initialize as None to create it later
+
+    def forward(self, x):
+        if self.dense_norm_layer is None:
+            input_size = x.size(-1)  # Get the size of the input features
+            self.dense_norm_layer = nn.Sequential(
+                nn.Linear(input_size, self.output_size),
+                nn.LayerNorm(self.output_size),
+                nn.LeakyReLU(),
+                nn.Dropout(self.dropout)
+            ).to(x.device)
+        return self.dense_norm_layer(x)
 
 class Generator(nn.Module):
     def __init__(self, img_h, img_w, conv_num, conv_size, dropout, output_num):
@@ -59,7 +90,6 @@ class Generator(nn.Module):
         
         self.generator_model = nn.Sequential(
             Flatten(),
-            # Transpose(),
             *self.fc_stack,
             Reshape((-1, 1, self.img_w, self.img_w)),
             *self.conv_stack,
@@ -106,35 +136,34 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, nang, px):
+    def __init__(self):
         super(Discriminator, self).__init__()
         self.discriminator_model = nn.Sequential(
             nn.Conv2d(1, 16, (5, 5), stride=(2, 2)),
             nn.Conv2d(16, 16, (5, 5), stride=(1, 1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(),
             nn.Dropout(0.2),
 
             nn.Conv2d(16, 32, (5, 5), stride=(2, 2)),
             nn.Conv2d(32, 32, (5, 5), stride=(1, 1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(),
             nn.Dropout(0.2),
 
             nn.Conv2d(32, 64, (3, 3), stride=(2, 2)),
             nn.Conv2d(64, 64, (3, 3), stride=(1, 1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(),
             nn.Dropout(0.2),
 
             nn.Conv2d(64, 128, (3, 3), stride=(2, 2)),
             nn.Conv2d(128, 128, (3, 3), stride=(1, 1)),
-            nn.LeakyReLU(0.2),
+            nn.LeakyReLU(),
             nn.Dropout(0.2),
 
-            nn.Flatten(),
-            # nn.LazyLinear(512),
-            # nn.LazyLinear(256),
-            # nn.LazyLinear(256),
-            
+            Flatten(),
+            Dense(512, 0.25),
+            Dense(256, 0.25),
+            Dense(256, 0.25),          
         )
-        
+            
     def forward(self, input):
         return self.discriminator_model(input)
