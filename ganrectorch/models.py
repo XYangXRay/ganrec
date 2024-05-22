@@ -25,19 +25,6 @@ class Transpose(nn.Module):
     def forward(self, x):
         return x.view(-1, 1)
     
-class DynamicLinear(nn.Module):
-    def __init__(self, output_size):
-        super(DynamicLinear, self).__init__()
-        self.output_size = output_size
-        self.linear_layer = None  # Initialize as None to create it later
-
-    def forward(self, x):
-        if self.linear_layer is None:
-            input_size = x.size(-1)  # Get the size of the input features
-            self.linear_layer = nn.Linear(input_size, self.output_size)
-
-        return self.linear_layer(x)
-
 class Dense(nn.Module):
     def __init__(self, output_size, dropout):
         super(Dense, self).__init__()
@@ -105,19 +92,25 @@ class Generator(nn.Module):
         return nn.Sequential(
             nn.Linear(units_in, units_out),
             nn.LayerNorm(units_out),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Dropout(dropout)
         )
 
-    def conv2d_norm(self, in_channels, out_channels, kernel_size, stride):
-        return nn.Sequential(
-            nn.Conv2d(in_channels, 
-                      out_channels, 
-                      kernel_size, stride, 
-                      padding='same',),
-            nn.LayerNorm([out_channels, self.img_w, self.img_w]),
-            nn.ReLU()
-        )
+    def conv2d_norm(self, in_channels, out_channels, kernel_size, stride, activation='LeakyReLU'):
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding=kernel_size//2),
+            nn.LayerNorm([out_channels, self.img_w, self.img_w])
+        ]       
+        if activation == 'ReLU':
+            layers.append(nn.ReLU())
+        elif activation == 'LeakyReLU':
+            layers.append(nn.LeakyReLU())
+        elif activation is None:
+            pass
+        else:
+            raise ValueError("Unsupported activation function")
+
+        return nn.Sequential(*layers)
 
     def dconv2d_norm(self, in_channels, out_channels, kernel_size, stride):
         padding = (kernel_size - 1) // 2
@@ -130,9 +123,8 @@ class Generator(nn.Module):
                                padding=padding, 
                                output_padding=output_padding),
             nn.LayerNorm([out_channels, self.img_w, self.img_w]),
-            nn.ReLU()
+            nn.LeakyReLU()
         )
-
 
 
 class Discriminator(nn.Module):
