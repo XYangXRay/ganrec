@@ -69,6 +69,19 @@ def ffactor(px, energy, z, pv):
     return h
 
 
+def in_notebook():
+    try:
+        from IPython import get_ipython
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other types
+    except NameError:
+        return False      # Probably standard Python interpreter
+
 class RECONmonitor:
     def __init__(self, recon_target, img_input):
         self.recon_target = recon_target
@@ -129,11 +142,18 @@ class RECONmonitor:
         # Update the loss plot
         self.axs[1, 1].plot(self.plot_x, self.plot_loss, 'r-')
         # self.im3.set_data(self.plot_x, self.plot_loss)
+        # Check if running in a notebook
         
-        clear_output(wait=True)
-        display(self.fig)
-        plt.pause(0.1)
-
+        if in_notebook():
+            clear_output(wait=True)
+            display(self.fig)
+            plt.pause(0.001)
+       
+        else:
+            plt.ion()  # Turn on interactive mode
+            plt.draw()
+            plt.pause(0.001)  # Pause briefly to ensure the plot is displayed
+             
     def close_plot(self):
         plt.close()
 
