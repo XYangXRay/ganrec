@@ -293,10 +293,8 @@ class GANtensor:
             recon_monitor.initial_plot(self.prj_input)
             pbar = tqdm(total=self.iter_num, desc='Reconstruction Progress', position=0, leave=True)
         ###########################################################################
-        for epoch in range(self.iter_num):
-            
-            step_result = self.recon_step(prj, ang, psi)
-     
+        for epoch in range(self.iter_num):          
+            step_result = self.recon_step(prj, ang, psi) 
             recon[epoch, :, :, :] = step_result['recon']
             gen_loss[epoch] = step_result['g_loss']
          
@@ -320,12 +318,11 @@ class GANtensor:
         return recon_out.astype(np.float32)
       
 
-
 class GANtomo3D:
     def __init__(self, prj_input, angle, **kwargs):
         tomo_args = config['GANphase']
         tomo_args.update(**kwargs)
-        super(GANtomo, self).__init__()
+        super(GANtomo3D, self).__init__()
         self.prj_input = prj_input
         self.angle = angle
         self.iter_num = tomo_args['iter_num']

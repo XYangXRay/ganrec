@@ -126,6 +126,41 @@ class RECONmonitor:
     def close_plot(self):
         plt.close()
 
+def display_strain_tensor(tensor):
+    """
+    Display the six components of the strain tensor.
+
+    Parameters:
+    tensor (numpy.ndarray): A numpy array of shape [6, h, w] representing the six components of the strain tensor.
+
+    Components are expected to be in the following order:
+    0: ε_xx
+    1: ε_xy
+    2: ε_xz
+    3: ε_yx
+    4: ε_yz
+    5: ε_zz
+    """
+    if tensor.shape[0] != 6:
+        raise ValueError("Input tensor must have 6 components in the first dimension")
+    component_names = [r'$\epsilon_{xx}$', r'$\epsilon_{xy}$', r'$\epsilon_{xz}$', 
+                       r'$\epsilon_{yx}$', r'$\epsilon_{yz}$', r'$\epsilon_{zz}$']
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    axes = axes.ravel()
+    vmin = np.min(tensor)
+    vmax = np.max(tensor)
+    for i in range(6):
+        ax = axes[i]
+        im = ax.imshow(tensor[i], cmap='viridis', aspect='equal', vmin=vmin, vmax=vmax)
+        ax.set_title(component_names[i])
+        ax.axis('off')
+    fig.subplots_adjust(right=0.85)  # Adjust the right space to fit the colorbar
+    cbar_ax = fig.add_axes([0.87, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+    fig.colorbar(im, cax=cbar_ax, orientation='vertical')
+    plt.tight_layout()
+    plt.show()
+
+
 # Draw a annular shape mask to only inlcude the feature in the annular area
 def annular_mask(img, inner_diameter, outer_diameter):
     image_size, _ = img.shape
