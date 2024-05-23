@@ -6,8 +6,7 @@ from tensorflow.keras.initializers import glorot_uniform
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization, Conv2D,
                                      Conv2DTranspose, Dense, Dropout, Flatten, Reshape,
                                      LayerNormalization, LeakyReLU, MaxPool2D, Reshape,
-                                     UpSampling2D, concatenate)
-from tensorflow.signal import irfft2d, rfft2d
+                                     UpSampling2D, Concatenate)
 
 
 def dense_norm(units, dropout, apply_batchnorm=False):
@@ -256,11 +255,6 @@ class FourierNeuralOperator:
         
         return model
 
-# Example usage
-fno = FourierNeuralOperator(img_h=64, img_w=64, conv_num=4, conv_size=3, strides=1, dropout=0.5, output_num=10)
-fno.model.summary()
-
-
 
 def make_discriminator(nang, px):
     model = Sequential()
@@ -348,15 +342,15 @@ def diffusion_model(img_h, img_w, conv_num, conv_size, dropout, output_num):
     x = LayerNormalization()(x)
     x = Activation('relu')(x)
     x = Reshape((img_h//8, img_w//8, 32))(x)
-    print(f'x4 shape: {x.shape}')
+
     
     # ----- right ( up ) -----
     x = Concatenate()([x, x4])
-    print(f'x4 shape: {x.shape}')
+
     x = block(x, x_ts)
     
     x = UpSampling2D(2)(x)
-    print(f'x8 shape: {x.shape}')
+
     x = Concatenate()([x, x8])
     x = block(x, x_ts)
     x = UpSampling2D(2)(x)
