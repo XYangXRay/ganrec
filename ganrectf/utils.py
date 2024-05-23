@@ -4,6 +4,7 @@ from numpy.fft import fftfreq
 import tifffile
 import matplotlib.pyplot as plt
 from IPython.display import display, clear_output
+from IPython.display import display, clear_output
 
 
 def nor_tomo(img):
@@ -105,7 +106,6 @@ class RECONmonitor:
         clear_output(wait=True)
         display(self.fig)
         plt.pause(0.1)
-        
     def close_plot(self):
         plt.close()
 
