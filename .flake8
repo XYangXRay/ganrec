@@ -7,5 +7,5 @@ exclude =
     versioneer.py,
     ganrc/_version.py,
     docs/source/conf.py
-max-line-length = 115
-ignore = E203, W503  # Ignore some style 'errors' produced while formatting by 'black'
+ignore = E501, W503  # This comment should not be part of the ignore option
+max-line-length = 88  
