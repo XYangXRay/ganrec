@@ -1,5 +1,6 @@
 import os
 import json
+from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
@@ -180,12 +181,16 @@ class GANtomo:
             self.discriminator.load_state_dict(torch.load(self.init_wpath+'discriminator.pth'))
         recon = torch.zeros((self.iter_num, 1, self.px, self.px))
         gen_loss = torch.zeros((self.iter_num))
+        
 
         ###########################################################################
         # Reconstruction process monitor
         if self.recon_monitor:
             plot_x, plot_loss = [], []
             recon_monitor = RECONmonitor('tomo', self.prj_input.cpu())
+            pbar = tqdm(total=self.iter_num, desc='Reconstruction Progress', position=0, leave=True)
+
+
         ###########################################################################
         for epoch in range(self.iter_num):
 
@@ -199,15 +204,17 @@ class GANtomo:
             if self.recon_monitor:
                 plot_x.append(epoch)
                 plot_loss = gen_loss[:epoch + 1]
+                pbar.set_postfix(G_loss=gen_loss[epoch].item(), D_loss=step_result['d_loss'].item())
+                pbar.update(1)
             if (epoch + 1) % 100 == 0:
                 if self.recon_monitor:
                     prj_rec = step_result['prj_rec'].view(self.nang, self.px)
                     prj_diff = torch.abs(prj_rec - self.prj_input.view((self.nang, self.px))).cpu()
                     rec_plt = recon.view(self.px, self.px).cpu()
                     recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss.cpu())
-                print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
-                                                                           gen_loss[epoch],
-                                                                           step_result['d_loss'].item()))
+                # print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
+                #                                                            gen_loss[epoch],
+                #                                                            step_result['d_loss'].item()))
         if self.save_wpath != None:
             torch.save(self.generator.state_dict(), self.save_wpath+'generator.pth')
             torch.save(self.discriminator.state_dict(), self.save_wpath+'discriminator.pth')
