@@ -230,7 +230,22 @@ class GANtensor:
         self.generator.compile()
         self.discriminator.compile()
         
-    @tf.function    
+    @tf.function   
+    def tfnor_tomo(data):
+    # Calculate the mean and standard deviation of the data
+        mean = tf.reduce_mean(data)
+        std = tf.math.reduce_std(data)
+
+    # Standardize the data (z-score normalization)
+        standardized_data = (data - mean) / std
+
+    # Find the minimum value in the standardized data
+        standardized_min = tf.reduce_min(standardized_data)
+
+    # Shift the data to start from 0
+        shifted_data = standardized_data - standardized_min
+
+        return shifted_data 
     def tfnor_tomo(self, img):
         img = tf.image.per_image_standardization(img)
         img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
@@ -352,13 +367,21 @@ class GANtomo3D:
         self.generator.compile()
         self.discriminator.compile()
 
-    def make_chechpoints(self):
-        checkpoint_dir = '/data/ganrec/training_checkpoints'
-        checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-        checkpoint = tf.train.Checkpoint(generator_optimizer=self.generator_optimizer,
-                                         discriminator_optimizer=self.discriminator_optimizer,
-                                         generator=self.generator,
-                                         discriminator=self.discriminator)
+    def tfnor_tomo(data):
+    # Calculate the mean and standard deviation of the data
+        mean = tf.reduce_mean(data)
+        std = tf.math.reduce_std(data)
+
+    # Standardize the data (z-score normalization)
+        standardized_data = (data - mean) / std
+
+    # Find the minimum value in the standardized data
+        standardized_min = tf.reduce_min(standardized_data)
+
+    # Shift the data to start from 0
+        shifted_data = standardized_data - standardized_min
+
+        return shifted_data 
 
     @tf.function
     def recon_step(self, prj, ang):
@@ -367,9 +390,9 @@ class GANtomo3D:
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             # tf.print(tf.reduce_min(sino), tf.reduce_max(sino))
             recon = self.generator(prj)
-            recon = tfnor_tomo(recon)
-            prj_rec = tomo_radon(recon, ang)
-            prj_rec = tfnor_tomo(prj_rec)
+            recon = self.tfnor_tomo(recon)
+            prj_rec = self.tomo_radon(recon, ang)
+            prj_rec = self.tfnor_tomo(prj_rec)
             real_output = self.discriminator(prj, training=True)
             fake_output = self.discriminator(prj_rec, training=True)
             g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
