@@ -67,7 +67,7 @@ def dense_res(x, filters, size):
     fx = Conv2DTranspose(filters, size, activation='relu', padding='same')(x)
     fx = BatchNormalization()(fx)
     fx = Conv2DTranspose(filters, size, padding='same')(fx)
-    out = concatenate([x,fx], axis=3)
+    out = Concatenate([x,fx], axis=3)
     out = LeakyReLU()(out)
     out = BatchNormalization()(out)
 
@@ -77,7 +77,7 @@ def conv_res(x, filters, size):
     fx = Conv2DTranspose(filters, size, activation='relu', padding='same')(x)
     fx = BatchNormalization()(fx)
     fx = Conv2DTranspose(filters, size, padding='same')(fx)
-    out = concatenate([x,fx], axis=3)
+    out = Concatenate([x,fx], axis=3)
     out = LeakyReLU()(out)
     out = BatchNormalization()(out)
     return out
