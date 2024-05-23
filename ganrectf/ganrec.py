@@ -361,7 +361,6 @@ class GANtomo3D:
                                         1)
         self.discriminator = make_discriminator(self.prj_input.shape[0],
                                                 self.prj_input.shape[1])
-        self.filter_optimizer = tf.keras.optimizers.Adam(5e-5)
         self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
         self.generator.compile()
@@ -414,25 +413,20 @@ class GANtomo3D:
         with tf.GradientTape() as filter_tape, tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             # tf.print(tf.reduce_min(sino), tf.reduce_max(sino))
             prj_filter = self.filter(prj)
-            prj_filter = tfnor_data(prj_filter)
+            prj_filter = self.tfnor_data(prj_filter)
             recon = self.generator(prj_filter)
-            recon = tfnor_data(recon)
-            prj_rec = tomo_radon(recon, ang)
-            prj_rec = tfnor_data(prj_rec)
+            recon = self.tfnor_data(recon)
+            prj_rec = TomoRadon(recon, ang).compute
+            prj_rec = self.tfnor_data(prj_rec)
             real_output = self.discriminator(prj, training=True)
             filter_output = self.discriminator(prj_filter, training=True)
             fake_output = self.discriminator(prj_rec, training=True)
-            f_loss = filer_loss(filter_output, prj, prj_filter)
             g_loss = generator_loss(fake_output, prj_filter, prj_rec, self.l1_ratio)
             d_loss = discriminator_loss(real_output, fake_output)
-        gradients_of_filter = filter_tape.gradient(f_loss,
-                                                   self.filter.trainable_variables)
         gradients_of_generator = gen_tape.gradient(g_loss,
                                                    self.generator.trainable_variables)
         gradients_of_discriminator = disc_tape.gradient(d_loss,
                                                         self.discriminator.trainable_variables)
-        self.filter_optimizer.apply_gradients(zip(gradients_of_filter,
-                                                  self.filter.trainable_variables))
         self.generator_optimizer.apply_gradients(zip(gradients_of_generator,
                                                      self.generator.trainable_variables))
         self.discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator,
@@ -646,7 +640,7 @@ class GANdiffraction:
         return img
 
     def make_model(self):
-        self.generator = make_generator_diff(self.i_input.shape[0],
+        self.generator = make_generator(self.i_input.shape[0],
                                         self.i_input.shape[1],
                                         self.conv_num,
                                         self.conv_size,
