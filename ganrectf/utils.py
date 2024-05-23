@@ -101,7 +101,7 @@ class RECONmonitor:
         vmin = np.min(img_rec)
         self.im2.set_clim(vmin, vmax)
         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
-        # plt.tight_layout()
+        plt.tight_layout()
         clear_output(wait=True)
         display(self.fig)
         plt.pause(0.1)

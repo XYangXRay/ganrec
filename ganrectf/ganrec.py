@@ -7,6 +7,8 @@ from ganrectf.models import make_generator, make_discriminator
 from ganrectf.utils import RECONmonitor, ffactor
 
 
+def tf_configures():
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 # Load the configuration from the JSON file
 def load_config(filename):
         # Get the directory of the script
@@ -65,6 +67,7 @@ class GANtomo:
         tomo_args = config['GANtomo']
         tomo_args.update(**kwargs)
         super(GANtomo, self).__init__()
+        tf_configures()
         self.prj_input = prj_input
         self.angle = angle
         self.iter_num = tomo_args['iter_num']
@@ -171,7 +174,7 @@ class GANtomo:
                     prj_rec = np.reshape(step_result['prj_rec'], (nang, px))
                     prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
                     rec_plt = np.reshape(recon[epoch], (px, px))
-                    self.recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
+                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
                                                                            gen_loss[epoch],
                                                                            step_result['d_loss'].numpy()))
@@ -179,7 +182,7 @@ class GANtomo:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
         if self.recon_monitor:
-            self.recon_monitor.close_plot()
+            recon_monitor.close_plot()
         return recon[epoch].astype(np.float32)
 
 
@@ -300,9 +303,7 @@ class GANtensor:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
         recon_monitor.close_plot()
-        recon_out = np.transpose(recon[epoch], axes= (2, 0, 1))
-       
-        
+        recon_out = np.transpose(recon[epoch], axes= (2, 0, 1))      
         return recon_out.astype(np.float32)
       
 
