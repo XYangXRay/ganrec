@@ -340,7 +340,7 @@ def to_device(data, device=None):
     if isinstance(data, (list, tuple)):
         return [to_device(x, device) for x in data]
     
-    data = data.to(device, non_blocking=True)
+    data = data.to(device)
     
     # If the data is a model and there are multiple GPUs, use DataParallel
     # if isinstance(data, torch.nn.Module) and torch.cuda.device_count() > 1:

@@ -3,9 +3,7 @@ import json
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
-# from torch.autograd import Variable
 from torch.cuda.amp import GradScaler, autocast
-from torchvision import transforms
 from ganrectorch.models import Generator, Discriminator
 from ganrectorch.propagators import RadonTransform
 from ganrectorch.utils import RECONmonitor, to_device, tensor_to_np
@@ -29,7 +27,7 @@ def load_config(filename):
 # Use the configuration
 config = load_config('config.json')
 
-@torch.compile()
+# @torch.compile()
 def discriminator_loss(real_output, fake_output):
     real_loss = torch.mean(torch.nn.BCEWithLogitsLoss()(real_output, torch.ones_like(real_output)))
     fake_loss = torch.mean(torch.nn.BCEWithLogitsLoss()(fake_output, torch.zeros_like(fake_output)))
@@ -45,16 +43,10 @@ def l2_loss(img1, img2):
     return torch.pow(torch.mean(torch.abs(img1-img2)), 2)
 
 # @torch.compile()
-
 def generator_loss(fake_output, img_output, pred, l1_ratio):
     #with autograd
     return torch.mean(torch.nn.BCEWithLogitsLoss()(fake_output, 
-                                                   torch.ones_like(fake_output))) + l1_ratio * torch.mean(torch.abs(img_output - pred))
-
-# def generator_loss(fake_output, img_output, pred, l1_ratio):
-#     gen_loss = F.binary_cross_entropy_with_logits(fake_output, 
-#                                                   torch.ones_like(fake_output)) + l1_loss(img_output, pred) * l1_ratio
-#     return gen_loss
+                                                   torch.ones_like(fake_output))) + l1_ratio * l1_loss(img_output, pred)
 
 # @torch.compile()
 def tfnor_phase(img):
@@ -121,19 +113,19 @@ class GANtomo:
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
         self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
         
-    @torch.compile()
+    # @torch.compile()
     def nor_tomo(self, data):
 
 
     # Calculate the mean and standard deviation of the data
-        mean = data.mean()
-        std = data.std()
+        mean = torch.mean(data)
+        std = torch.std(data)
 
     # Standardize the data (z-score normalization)
         standardized_data = (data - mean) / std
 
     # Find the minimum value in the standardized data
-        standardized_min = standardized_data.min()
+        standardized_min = torch.min(standardized_data)
 
     # Shift the data to start from 0
         shifted_data = standardized_data - standardized_min

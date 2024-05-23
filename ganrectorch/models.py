@@ -30,19 +30,23 @@ class Dense(nn.Module):
         super(Dense, self).__init__()
         self.output_size = output_size
         self.dropout = dropout
-        self.dense_norm_layer = None  # Initialize as None to create it later
+        self.dense_norm_layer = None # Initialize as None to create it later
 
+    def build_layer(self, input_size, device):
+        self.dense_norm_layer = nn.Sequential(
+            nn.Linear(input_size, self.output_size),
+            nn.LayerNorm(self.output_size),
+            nn.LeakyReLU(),
+            nn.Dropout(self.dropout)
+        ).to(device)
+    
     def forward(self, x):
         if self.dense_norm_layer is None:
             input_size = x.size(-1)  # Get the size of the input features
-            self.dense_norm_layer = nn.Sequential(
-                nn.Linear(input_size, self.output_size),
-                nn.LayerNorm(self.output_size),
-                nn.LeakyReLU(),
-                nn.Dropout(self.dropout)
-            ).to(x.device)
-        return self.dense_norm_layer(x)
+            self.build_layer(input_size, x.device)
+        return self.dense_norm_layer(x)    
 
+        
 class Generator(nn.Module):
     def __init__(self, img_h, img_w, conv_num, conv_size, dropout, output_num):
         super(Generator, self).__init__()
@@ -60,7 +64,7 @@ class Generator(nn.Module):
             self.dense_norm(units_out, units_out, dropout),
             self.dense_norm(units_out, fc_size, 0)
         ])
-
+        
         self.conv_stack = nn.ModuleList([
             self.conv2d_norm(1, conv_num, conv_size+2, 1),
             self.conv2d_norm(conv_num, conv_num, conv_size+2, 1),
@@ -152,10 +156,80 @@ class Discriminator(nn.Module):
             nn.Dropout(0.2),
 
             Flatten(),
-            Dense(512, 0.25),
-            Dense(256, 0.25),
-            Dense(256, 0.25),          
+            nn.LazyLinear(512),
+            nn.LeakyReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(),
+            nn.Dropout(0.25),
+            nn.Linear(512, 256),
+            nn.LeakyReLU(),
+            # nn.Dropout(0.25),           
+            # Dense(512, 0.25),
+            # Dense(256, 0.25),
+            # Dense(256, 0.25),          
         )
             
     def forward(self, input):
         return self.discriminator_model(input)
+    
+    # def Dense(self, output_size, dropout):
+    #     dense_norm_layer = [None]  # Using a list to hold the mutable state
+    #     def layer_fn(x):
+    #         if dense_norm_layer[0] is None:
+    #             input_size = x.size(-1)  # Get the size of the input features
+    #             device = x.device
+    #             dense_norm_layer[0] = nn.Sequential(
+    #                 nn.Linear(input_size, output_size),
+    #                 nn.LayerNorm(output_size),
+    #                 nn.LeakyReLU(),
+    #                 nn.Dropout(dropout)
+    #             ).to(device)
+    #         return dense_norm_layer[0](x)
+    #     return layer_fn
+    
+
+# class Discriminator(nn.Module):
+#     def __init__(self):
+#         super(Discriminator, self).__init__()
+#         self.conv = nn.Sequential(
+#             nn.Conv2d(1, 16, (5, 5), stride=(2, 2)),
+#             nn.Conv2d(16, 16, (5, 5), stride=(1, 1)),
+#             nn.LeakyReLU(),
+#             nn.Dropout(0.2),
+
+#             nn.Conv2d(16, 32, (5, 5), stride=(2, 2)),
+#             nn.Conv2d(32, 32, (5, 5), stride=(1, 1)),
+#             nn.LeakyReLU(),
+#             nn.Dropout(0.2),
+
+#             nn.Conv2d(32, 64, (3, 3), stride=(2, 2)),
+#             nn.Conv2d(64, 64, (3, 3), stride=(1, 1)),
+#             nn.LeakyReLU(),
+#             nn.Dropout(0.2),
+
+#             nn.Conv2d(64, 128, (3, 3), stride=(2, 2)),
+#             nn.Conv2d(128, 128, (3, 3), stride=(1, 1)),
+#             nn.LeakyReLU(),
+#             nn.Dropout(0.2), )
+
+            
+#     def forward(self, x):
+#         x = self.conv(x)
+#         x = x.view(x.size(0), -1)
+#         input_size = x.size(-1)
+#         x = self.dense_layer(input_size, 512, 0.25)(x)
+#         x = self.dense_layer(512, 512, 0.25)(x)
+#         x = self.dense_layer(input_size, 512, 0.25)(x)
+#         return x
+  
+    
+#     def dense_layer(self, units_in, units_out, dropout):
+#         return nn.Sequential(
+#             nn.Linear(units_in, units_out),
+#             nn.LayerNorm(units_out),
+#             nn.LeakyReLU(),
+#             nn.Dropout(dropout)
+#         )
+
+    
