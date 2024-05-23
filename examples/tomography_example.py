@@ -1,6 +1,5 @@
 import tifffile
 import os
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 from ganrectf.utils import angles, nor_tomo
 from ganrectf.ganrec import GANtomo
 

@@ -64,6 +64,18 @@ def ffactor(px, energy, z, pv):
     h = np.exp(- 1j * frequ_prefactor * (xi ** 2 + eta ** 2) / 2)
     return h
 
+def in_notebook():
+    try:
+        from IPython import get_ipython
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other types
+    except NameError:
+        return False      # Probably standard Python interpreter
 
 class RECONmonitor:
     def __init__(self, recon_target):
@@ -103,9 +115,14 @@ class RECONmonitor:
         self.im2.set_clim(vmin, vmax)
         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
         plt.tight_layout()
-        clear_output(wait=True)
-        display(self.fig)
-        plt.pause(0.1)
+        if in_notebook():
+            clear_output(wait=True)
+            display(self.fig)
+            plt.pause(0.001)  
+        else:
+            plt.ion()  # Turn on interactive mode
+            plt.draw()
+            plt.pause(0.001)  
     def close_plot(self):
         plt.close()
 

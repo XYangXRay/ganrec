@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import json
+from tqdm import tqdm
 import tensorflow as tf
 from ganrectf.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
 from ganrectf.models import make_generator, make_discriminator
@@ -156,6 +157,7 @@ class GANtomo:
             plot_x, plot_loss = [], []
             recon_monitor = RECONmonitor('tomo')
             recon_monitor.initial_plot(self.prj_input)
+            pbar = tqdm(total=self.iter_num, desc='Reconstruction Progress', position=0, leave=True)
         ###########################################################################
         for epoch in range(self.iter_num):
 
@@ -169,15 +171,17 @@ class GANtomo:
             if self.recon_monitor:
                 plot_x.append(epoch)
                 plot_loss = gen_loss[:epoch + 1]
+                pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=step_result['d_loss'].numpy())
+                pbar.update(1)
             if (epoch + 1) % 100 == 0:
                 if self.recon_monitor:
                     prj_rec = np.reshape(step_result['prj_rec'], (nang, px))
                     prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
                     rec_plt = np.reshape(recon[epoch], (px, px))
                     recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
-                print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
-                                                                           gen_loss[epoch],
-                                                                           step_result['d_loss'].numpy()))
+                # print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
+                #                                                            gen_loss[epoch],
+                #                                                            step_result['d_loss'].numpy()))
         if self.save_wpath != None:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
