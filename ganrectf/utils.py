@@ -4,6 +4,7 @@ from numpy.fft import fftfreq
 import tifffile
 import matplotlib.pyplot as plt
 from IPython.display import display, clear_output
+from IPython.display import display, clear_output
 
 
 def nor_tomo(img):
@@ -73,7 +74,6 @@ class RECONmonitor:
         elif self.recon_target == 'phase':
             self.plot_txt = 'Intensity'
       
-
     def initial_plot(self, img_input):
         _, px = img_input.shape
         self.im0 = self.axs[0, 0].imshow(img_input, cmap='gray')
@@ -106,7 +106,6 @@ class RECONmonitor:
         clear_output(wait=True)
         display(self.fig)
         plt.pause(0.1)
-
     def close_plot(self):
         plt.close()
 
@@ -140,3 +139,4 @@ def save_tiff(image, filename):
     image = np.array(image, dtype = np.float32)
     # Save the image
     tifffile.imwrite(filename, image)
+    

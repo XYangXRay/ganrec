@@ -1,5 +1,4 @@
 import time
-import dxchange
 from ganrectf.utils import angles, nor_tomo
 from ganrectf.ganrec import GANtomo
 

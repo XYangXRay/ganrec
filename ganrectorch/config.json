@@ -1,0 +1,59 @@
+{
+    "GANtomo": {
+        "iter_num": 1000,
+        "conv_num": 32,
+        "conv_size": 3,
+        "dropout": 0.25,
+        "l1_ratio": 100,
+        "g_learning_rate": 1e-3,
+        "d_learning_rate": 1e-3,
+        "save_wpath": null,
+        "init_wpath": null,
+        "init_model": false,
+        "recon_monitor": true
+    },
+
+    "GANtensor": {
+        "iter_num": 1000,
+        "conv_num": 32,
+        "conv_size": 3,
+        "dropout": 0.25,
+        "l1_ratio": 100,
+        "g_learning_rate": 1e-2,
+        "d_learning_rate": 1e-5,
+        "save_wpath": null,
+        "init_wpath": null,
+        "init_model": false,
+        "recon_monitor": true
+    },
+    "GANphase": {
+        "iter_num": 1000,
+        "conv_num": 32,
+        "conv_size": 3,
+        "dropout": 0.25,
+        "l1_ratio": 10,
+        "abs_ratio": 0.05,
+        "g_learning_rate": 1e-3,
+        "d_learning_rate": 1e-5,
+        "phase_only": true,
+        "save_wpath": null,
+        "init_wpath": null,
+        "init_model": false,
+        "recon_monitor": true
+    },
+    "GANdiffraction": {
+        "iter_num": 1000,
+        "conv_num": 32,
+        "conv_size": 3,
+        "dropout": 0.25,
+        "l1_ratio": 500,
+        "abs_ratio": 0.0,
+        "g_learning_rate": 1e-3,
+        "d_learning_rate": 1e-6,
+        "phase_only": true,
+        "save_wpath": null,
+        "init_wpath": null,
+        "init_model": false,
+        "recon_monitor": true
+    }
+}
