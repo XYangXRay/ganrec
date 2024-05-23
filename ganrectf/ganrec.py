@@ -179,9 +179,6 @@ class GANtomo:
                     prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
                     rec_plt = np.reshape(recon[epoch], (px, px))
                     recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
-                # print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
-                #                                                            gen_loss[epoch],
-                #                                                            step_result['d_loss'].numpy()))
         if self.save_wpath != None:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
@@ -196,6 +193,7 @@ class GANtensor:
         tomo_args = config['GANtensor']
         tomo_args.update(**kwargs)
         super(GANtensor, self).__init__()
+        tf_configures()
         self.prj_input = prj_input
         self.angle = angle
         self.psi = psi
@@ -231,25 +229,22 @@ class GANtensor:
         self.discriminator.compile()
         
     @tf.function   
-    def tfnor_tomo(data):
+    def tfnor_tomo(self, data):
     # Calculate the mean and standard deviation of the data
         mean = tf.reduce_mean(data)
         std = tf.math.reduce_std(data)
-
     # Standardize the data (z-score normalization)
         standardized_data = (data - mean) / std
-
     # Find the minimum value in the standardized data
         standardized_min = tf.reduce_min(standardized_data)
-
     # Shift the data to start from 0
         shifted_data = standardized_data - standardized_min
-
         return shifted_data 
-    def tfnor_tomo(self, img):
-        img = tf.image.per_image_standardization(img)
-        img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
-        return img
+    # def tfnor_tomo(self, img):
+    #     img = tf.image.per_image_standardization(img)
+    #     img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
+    #     return img
+    
     @tf.function
     def recon_step(self, prj, ang, psi):      
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
@@ -278,7 +273,6 @@ class GANtensor:
     def recon(self):
         nang, px = self.prj_input.shape
         prj = np.reshape(self.prj_input, (1, nang, px, 1)) 
-      
         prj = tf.cast(prj, dtype=tf.float32)
         prj = self.tfnor_tomo(prj)
         ang = tf.cast(self.angle, dtype=tf.float32)
@@ -297,6 +291,7 @@ class GANtensor:
             plot_x, plot_loss = [], []
             recon_monitor = RECONmonitor('tomo')
             recon_monitor.initial_plot(self.prj_input)
+            pbar = tqdm(total=self.iter_num, desc='Reconstruction Progress', position=0, leave=True)
         ###########################################################################
         for epoch in range(self.iter_num):
             
@@ -306,18 +301,17 @@ class GANtensor:
             gen_loss[epoch] = step_result['g_loss']
          
             ###########################################################################
-
-            plot_x.append(epoch)
-            plot_loss = gen_loss[:epoch + 1]
+            if self.recon_monitor:
+                plot_x.append(epoch)
+                plot_loss = gen_loss[:epoch + 1]
+                pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=step_result['d_loss'].numpy())
+                pbar.update(1)
             if (epoch + 1) % 100 == 0:
                 if recon_monitor:
                     prj_rec = np.reshape(step_result['prj_rec'], (nang, px))
                     prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
                     rec_plt = np.reshape(recon[epoch,:,:,0], (px, px))
                     recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
-                print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
-                                                                           gen_loss[epoch],
-                                                                           step_result['d_loss'].numpy()))
         if self.save_wpath != None:
             self.generator.save(self.save_wpath+'generator.h5')
             self.discriminator.save(self.save_wpath+'discriminator.h5')
