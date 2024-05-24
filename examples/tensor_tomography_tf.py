@@ -1,7 +1,6 @@
 import numpy as np
 import tifffile
-import matplotlib.pyplot as plt
-from ganrectf.utils import angles, nor_tomo
+from ganrectf.utils import angles
 from ganrectf.ganrec import GANtensor
 
 
