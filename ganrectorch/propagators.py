@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.fft
 import torchvision.transforms as transforms
 
+
 class RadonTransform(nn.Module):
     def __init__(self, data, angles):
         super(RadonTransform, self).__init__()
@@ -28,7 +29,7 @@ class RadonTransform(nn.Module):
         image = data.repeat(len(angles), 1, 1, 1)
 
         # Apply the grid to the images
-        rotated_images = F.grid_sample(image, grid, mode='bilinear', align_corners=False)
+        rotated_images = F.grid_sample(image, grid, mode="bilinear", align_corners=False)
 
         # Sum along the projection direction (height)
         radon_projections = torch.sum(rotated_images, dim=2)
@@ -78,12 +79,14 @@ class TensorRadon:
         sin_2angles = torch.sin(2 * angles).unsqueeze(1)
         sin_angles_sin_2psi = torch.sin(angles) * torch.sin(2 * self.psi).unsqueeze(1)
         cos_angles_sin_2psi = torch.cos(angles) * torch.sin(2 * self.psi).unsqueeze(1)
-        proj_strain_ws = (proj_strain_comp[0] * cos_squared * sin_psi_squared + 
-                          proj_strain_comp[1] * sin_squared * sin_psi_squared +
-                          proj_strain_comp[2] * cos_psi_squared +
-                          proj_strain_comp[3] * sin_2angles * sin_psi_squared +
-                          proj_strain_comp[4] * sin_angles_sin_2psi +
-                          proj_strain_comp[5] * cos_angles_sin_2psi)
+        proj_strain_ws = (
+            proj_strain_comp[0] * cos_squared * sin_psi_squared
+            + proj_strain_comp[1] * sin_squared * sin_psi_squared
+            + proj_strain_comp[2] * cos_psi_squared
+            + proj_strain_comp[3] * sin_2angles * sin_psi_squared
+            + proj_strain_comp[4] * sin_angles_sin_2psi
+            + proj_strain_comp[5] * cos_angles_sin_2psi
+        )
         tensor_sino = proj_strain_ws
         tensor_sino = tensor_sino.view(1, tensor_sino.shape[0], tensor_sino.shape[1], 1)
         return tensor_sino
@@ -100,13 +103,13 @@ class PhaseFresnel:
     def compute(self):
         paddings = torch.tensor([[self.px // 2, self.px // 2], [self.px // 2, self.px // 2]])
         pvalue = torch.mean(self.phase[:100, :])
-        self.phase = torch.nn.functional.pad(self.phase, paddings, 'reflect')
-        self.absorption = torch.nn.functional.pad(self.absorption, paddings, 'reflect')
+        self.phase = torch.nn.functional.pad(self.phase, paddings, "reflect")
+        self.absorption = torch.nn.functional.pad(self.absorption, paddings, "reflect")
         abfs = torch.complex(-self.absorption, self.phase)
         abfs = torch.exp(abfs)
         ifp = torch.abs(torch.fft.ifft2(self.ff * torch.fft.fft2(abfs))) ** 2
         ifp = ifp.view(ifp.shape[0], ifp.shape[1], 1)
-        ifp = transforms.CenterCrop(ifp.shape[0]//2)(ifp)
+        ifp = transforms.CenterCrop(ifp.shape[0] // 2)(ifp)
         ifp = transforms.Normalize(0, 1)(ifp)
         ifp = ifp.view(1, ifp.shape[0], ifp.shape[1], 1)
         return ifp
