@@ -468,6 +468,7 @@ class GANphase:
         phase_args = config["GANphase"]
         phase_args.update(**kwargs)
         super(GANphase, self).__init__()
+        tf_configures()
         self.i_input = i_input
         self.px, _ = i_input.shape
         self.energy = energy
@@ -542,6 +543,7 @@ class GANphase:
             plot_x, plot_loss = [], []
             recon_monitor = RECONmonitor("phase")
             recon_monitor.initial_plot(self.i_input)
+            pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
         ###########################################################################
         for epoch in range(self.iter_num):
 
@@ -554,20 +556,17 @@ class GANphase:
             gen_loss[epoch] = step_results["g_loss"]
             d_loss = step_results["d_loss"]
             ###########################################################################
-
-            plot_x.append(epoch)
-            plot_loss = gen_loss[: epoch + 1]
+            if self.recon_monitor:
+                plot_x.append(epoch)
+                plot_loss = gen_loss[: epoch + 1]
+                pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=d_loss.numpy())
+                pbar.update(1)
             if (epoch + 1) % 100 == 0:
                 if recon_monitor:
                     i_rec = np.reshape(i_rec, (self.px, self.px))
                     i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
                     phase_plt = np.reshape(phase[epoch], (self.px, self.px))
                     recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
-                print(
-                    "Iteration {}: G_loss is {} and D_loss is {}".format(
-                        epoch + 1, gen_loss[epoch], d_loss.numpy()
-                    )
-                )
         recon_monitor.close_plot()
         return absorption[epoch].astype(np.float32), phase[epoch].astype(np.float32)
 
@@ -659,6 +658,7 @@ class GANdiffraction:
             plot_x, plot_loss = [], []
             recon_monitor = RECONmonitor("phase")
             recon_monitor.initial_plot(self.i_input)
+            pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
         ###########################################################################
         for epoch in range(self.iter_num):
 
@@ -675,17 +675,14 @@ class GANdiffraction:
             if self.recon_monitor:
                 plot_x.append(epoch)
                 plot_loss = gen_loss[: epoch + 1]
+                pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=d_loss.numpy())
+                pbar.update(1)
             if (epoch + 1) % 100 == 0:
                 if self.recon_monitor:
                     i_rec = np.reshape(i_rec, (self.px, self.px))
                     i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
                     phase_plt = np.reshape(phase[epoch], (self.px, self.px))
                     recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
-                print(
-                    "Iteration {}: G_loss is {} and D_loss is {}".format(
-                        epoch + 1, gen_loss[epoch], d_loss.numpy()
-                    )
-                )
         if self.recon_monitor:
             recon_monitor.close_plot()
         return absorption[epoch], phase[epoch]
