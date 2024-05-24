@@ -55,7 +55,8 @@ documentation = "https://github.com/XYangXRay/ganrec"
 changelog = "https://your_project_changelog.com"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["ganrectf", "ganrectorch"]
+exclude = ["tests*"]
 
 [tool.setuptools.scripts]
 your_script = "your_module:main_function"
