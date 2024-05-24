@@ -2,12 +2,20 @@
 Credits
 =======
 
+Development Lead
+----------------
+
+* Xiaogang Yang <yangxg@bnl.gov>
+
 Maintainer
 ----------
 
-* Brookhaven National Lab <yangxg@bnl.gov>
+* Xiaogang Yang <yangxg@bnl.gov>
+
 
 Contributors
 ------------
 
-None yet. Why not be the first? See: CONTRIBUTING.rst
+* Dawit Hailu <dawit.hailu@hereon.de>
+
+See: CONTRIBUTING.rst

@@ -40,8 +40,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "numpy>=1.19.2",
-    "pandas>=1.1.3",
+    "numpy>=1.19.2"
 ]
 
 [project.optional-dependencies]
@@ -50,9 +49,9 @@ pytorch = ["pytorch>=2.0.0"]
 
 
 [project.urls]
-homepage = "https://your_project_homepage.com"
-repository = "https://github.com/your_username/your_project_name"
-documentation = "https://your_project_docs.com"
+homepage = "https://github.com/XYangXRay/ganrec"
+repository = "https://github.com/XYangXRay/ganrec"
+documentation = "https://github.com/XYangXRay/ganrec"
 changelog = "https://your_project_changelog.com"
 
 [tool.setuptools.packages.find]
