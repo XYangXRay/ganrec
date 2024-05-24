@@ -64,6 +64,18 @@ def ffactor(px, energy, z, pv):
     h = np.exp(- 1j * frequ_prefactor * (xi ** 2 + eta ** 2) / 2)
     return h
 
+def in_notebook():
+    try:
+        from IPython import get_ipython
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other types
+    except NameError:
+        return False      # Probably standard Python interpreter
 
 class RECONmonitor:
     def __init__(self, recon_target):
@@ -103,11 +115,51 @@ class RECONmonitor:
         self.im2.set_clim(vmin, vmax)
         self.axs[1, 1].plot(plot_x, plot_loss, 'r-')
         plt.tight_layout()
-        clear_output(wait=True)
-        display(self.fig)
-        plt.pause(0.1)
+        if in_notebook():
+            clear_output(wait=True)
+            display(self.fig)
+            plt.pause(0.001)  
+        else:
+            plt.ion()  # Turn on interactive mode
+            plt.draw()
+            plt.pause(0.001)  
     def close_plot(self):
         plt.close()
+
+def display_strain_tensor(tensor):
+    """
+    Display the six components of the strain tensor.
+
+    Parameters:
+    tensor (numpy.ndarray): A numpy array of shape [6, h, w] representing the six components of the strain tensor.
+
+    Components are expected to be in the following order:
+    0: ε_xx
+    1: ε_xy
+    2: ε_xz
+    3: ε_yx
+    4: ε_yz
+    5: ε_zz
+    """
+    if tensor.shape[0] != 6:
+        raise ValueError("Input tensor must have 6 components in the first dimension")
+    component_names = [r'$\epsilon_{xx}$', r'$\epsilon_{xy}$', r'$\epsilon_{xz}$', 
+                       r'$\epsilon_{yx}$', r'$\epsilon_{yz}$', r'$\epsilon_{zz}$']
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    axes = axes.ravel()
+    vmin = np.min(tensor)
+    vmax = np.max(tensor)
+    for i in range(6):
+        ax = axes[i]
+        im = ax.imshow(tensor[i], cmap='viridis', aspect='equal', vmin=vmin, vmax=vmax)
+        ax.set_title(component_names[i])
+        ax.axis('off')
+    fig.subplots_adjust(right=0.85)  # Adjust the right space to fit the colorbar
+    cbar_ax = fig.add_axes([0.87, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+    fig.colorbar(im, cax=cbar_ax, orientation='vertical')
+    plt.tight_layout()
+    plt.show()
+
 
 # Draw a annular shape mask to only inlcude the feature in the annular area
 def annular_mask(img, inner_diameter, outer_diameter):

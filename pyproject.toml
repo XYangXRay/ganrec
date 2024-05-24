@@ -18,3 +18,46 @@ exclude = '''
   | tests/data
 )/
 '''
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "GANrec"
+version = "0.1.0"
+description = "A deep neural network data reconstruction platform"
+authors = [
+    { name = "Xiaogang Yang", email = "xiaogang.yang@outlook.com" }
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+keywords = ["GAN", "Data reconstruction", "Tomography", "Phase retrieval"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.19.2"
+]
+
+[project.optional-dependencies]
+tensorflow = ["tensorflow>=2.0.0"]
+pytorch = ["pytorch>=2.0.0"]
+
+
+[project.urls]
+homepage = "https://github.com/XYangXRay/ganrec"
+repository = "https://github.com/XYangXRay/ganrec"
+documentation = "https://github.com/XYangXRay/ganrec"
+changelog = "https://your_project_changelog.com"
+
+[tool.setuptools.packages.find]
+where = ["ganrectf", "ganrectorch"]
+exclude = ["tests*"]
+
+[tool.setuptools.scripts]
+your_script = "your_module:main_function"
+

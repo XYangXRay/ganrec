@@ -10,6 +10,4 @@ nang, px = prj.shape
 ang = angles(nang)
 prj = nor_tomo(prj)
 rec = GANtomo(prj, ang, iter_num=1000).recon()
-plt.imshow(rec)
-plt.show()
 tifffile.imwrite('./test_results/recon_shale.tiff', rec)

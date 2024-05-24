@@ -6,8 +6,7 @@ from tensorflow.keras.initializers import glorot_uniform
 from tensorflow.keras.layers import (Activation, Add, BatchNormalization, Conv2D,
                                      Conv2DTranspose, Dense, Dropout, Flatten, Reshape,
                                      LayerNormalization, LeakyReLU, MaxPool2D, Reshape,
-                                     UpSampling2D, concatenate)
-from tensorflow.signal import irfft2d, rfft2d
+                                     UpSampling2D, Concatenate)
 
 
 def dense_norm(units, dropout, apply_batchnorm=False):
@@ -68,7 +67,7 @@ def dense_res(x, filters, size):
     fx = Conv2DTranspose(filters, size, activation='relu', padding='same')(x)
     fx = BatchNormalization()(fx)
     fx = Conv2DTranspose(filters, size, padding='same')(fx)
-    out = concatenate([x,fx], axis=3)
+    out = Concatenate([x,fx], axis=3)
     out = LeakyReLU()(out)
     out = BatchNormalization()(out)
 
@@ -78,7 +77,7 @@ def conv_res(x, filters, size):
     fx = Conv2DTranspose(filters, size, activation='relu', padding='same')(x)
     fx = BatchNormalization()(fx)
     fx = Conv2DTranspose(filters, size, padding='same')(fx)
-    out = concatenate([x,fx], axis=3)
+    out = Concatenate([x,fx], axis=3)
     out = LeakyReLU()(out)
     out = BatchNormalization()(out)
     return out
@@ -168,113 +167,93 @@ def make_generator_3d(img_h, img_w, conv_num, conv_size, dropout, output_num):
 
 
 
-def P(X, F1, k_size, s, stage):
-    
-    # Name definition
-    P_Name = 'P-layer' + str(stage)
-    P_BN_Name = 'P-layer-BN' + str(stage)
-    
-    X = Conv2D(filters = F1, kernel_size = (k_size, k_size), strides = (s, s), padding = 'valid',
-              name = P_Name, kernel_initializer = glorot_uniform(seed = 0))(X)
-    
-    X = BatchNormalization(axis = 3, name = P_BN_Name)(X)
-    
-    X = Activation('relu')(X)
-    
-    return X
+class FourierNeuralOperator:
+    def __init__(self, img_h, img_w, conv_num, conv_size, strides, dropout, output_num):
+        self.img_h = img_h
+        self.img_w = img_w
+        self.conv_num = conv_num
+        self.conv_size = conv_size
+        self.strides = strides
+        self.dropout = dropout
+        self.output_num = output_num
+        
+        # Initialize the model
+        self.model = self.make_generator_fno()
 
-def FourierLayer(X, stage):
-    
-    # Name definition
-    FFT_name = 'fft-layer' + str(stage)
-    RFFT_name = 'ifft-layer' + str(stage)
-    
-    
-    Res_X = X
-    
-    
-    X = rfft2d(X, name = FFT_name)
-    
-    
-    out_ft = tf.zeros((1, X.shape[1], X.shape[2], X.shape[3]),dtype=tf.dtypes.complex64)
+    def P(self, X, conv_num, conv_size, strides, stage):
+        # Name definition
+        P_Name = 'P-layer' + str(stage)
+        P_BN_Name = 'P-layer-BN' + str(stage)
+        
+        X = Conv2D(filters=conv_num, kernel_size=(conv_size, conv_size), strides=(strides, strides), padding='valid',
+                   name=P_Name, kernel_initializer=glorot_uniform(seed=0))(X)
+        X = BatchNormalization(axis=3, name=P_BN_Name)(X)
+        X = Activation('relu')(X)
+        
+        return X
 
-    
-    out_ft_first = tf.Variable(np.array(out_ft.shape))
-    out_ft_first = tf.math.multiply(X[:, :, :5, :5], tf.cast(Res_X[:, :, :5, :5], tf.complex64))
+    def FourierLayer(self, X, stage):
+        # Name definition
+        FFT_name = 'fft-layer' + str(stage)
+        RFFT_name = 'ifft-layer' + str(stage)
+        
+        Res_X = X
+        
+        # Perform Fourier Transform
+        X = tf.signal.fft2d(tf.cast(X, tf.complex64), name=FFT_name)
+        
+        # Initialize an empty tensor for output in Fourier space
+        out_ft = tf.zeros_like(X, dtype=tf.complex64)
+        
+        # Define the regions for multiplication
+        out_ft_first = X[:, :, :5, :5] * tf.cast(Res_X[:, :, :5, :5], tf.complex64)
+        out_ft_end = X[:, :, -5:, :5] * tf.cast(Res_X[:, :, -5:, :5], tf.complex64)
+        
+        # Combine the results
+        o1 = tf.concat([out_ft_first, out_ft[:, :, :5, 5:]], axis=3)
+        o2 = tf.concat([out_ft[:, :, -5:, 5:], out_ft_end], axis=3)
+        out_ft = tf.concat([o1, o2], axis=2)
+        
+        # Perform Inverse Fourier Transform
+        X = tf.signal.ifft2d(X, name=RFFT_name)
+        
+        # Add the residual connection
+        X = Add()([tf.cast(X, tf.float32), Res_X])
+        X = Activation('relu')(X)
+        
+        return X
 
-    out_ft_end  = tf.Variable(np.array(out_ft.shape))
-    out_ft_end = tf.math.multiply(X[:, :, -5:, :5], tf.cast(Res_X[:, :, -5:, :5], tf.complex64))
+    def Q(self, X, conv_num, conv_size, strides, stage):
+        # Name definition
+        Q_Name = 'Q-layer' + str(stage)
+        Q_BN_Name = 'Q-layer-BN' + str(stage)
+        
+        X = Conv2D(filters=conv_num, kernel_size=(conv_size, conv_size), strides=(strides, strides), padding='same',
+                   name=Q_Name, kernel_initializer=glorot_uniform(seed=0))(X)
+        X = BatchNormalization(axis=3, name=Q_BN_Name)(X)
+        X = Activation('relu')(X)
+        
+        return X
 
-
-    o1 = tf.concat([out_ft_first,out_ft[:,:,:5,5:]],axis=3)
-    o2 = tf.concat([out_ft[:,:,-5:,5:],out_ft_end],axis=3)
-    
-    out_ft = tf.concat([o1,o2],axis=2)
-
-    
-    X = irfft2d(X,name = RFFT_name)
-    
-    
-    X = Add()([X, Res_X])
-    
-    X = Activation('relu')(X)
-
-    
-    return X
-
-def Q(X, F1, k_size, s, stage):
-    
-    # Name definition
-    Q_Name = 'Q-layer' + str(stage)
-    Q_BN_Name = 'Q-layer-BN' + str(stage)
-    
-    
-    X = Conv2D(filters = F1, kernel_size = (k_size, k_size), strides = (s, s), padding = 'same',
-              name = Q_Name, kernel_initializer = glorot_uniform(seed = 0))(X)
-    
-    X = BatchNormalization(axis = 3, name = Q_BN_Name)(X)
-    
-    X = Activation('relu')(X)
-    
-    return X
-
-def make_generator_fno(img_h, img_w, conv_num, conv_size, dropout, output_num):
-
-    
-    X_input = Input(shape = (img_h, img_w, 1))
-    
-    # Zero-Padding
-    # X = ZeroPadding2D((2, 2))(X_input)
-    
-    # First Part
-    # X = P(X, F1 = 256, k_size = 1, s = 1, stage = 1)
-#    X = P(X, F1 = 256, k_size = 2, s = 2, stage = 2)
-#    X = P(X, F1 = 256, k_size = 2, s = 2, stage = 3)
-    # X = MaxPooling2D((2, 2), strides = (2, 2))(X)
-    # X = tf.keras.layers.Dropout(0.3)(X)
-    
-    
-    # Middle Part
-    X = FourierLayer(X_input, stage = 1)
-    X = FourierLayer(X, stage = 2)
-    X = FourierLayer(X, stage = 3)
-    X = FourierLayer(X, stage = 4)
-    
-    # Final Part
-
-#     X = Q(X, F1 = 512, k_size = 1, s = 1, stage = 1)
-# #    X = Q(X, F1 = 1024, k_size = 1, s = 2, stage = 2)
-# #    X = Q(X, F1 = 256, k_size = 1, s = 2, stage = 3)
-# #    X = UpSampling2D((2, 2))(X)
-# #    X = tf.keras.layers.Dropout(0.4)(X)
-#     X = Flatten()(X)
-#     X = Dense(1024, activation='sigmoid', kernel_initializer = glorot_uniform(seed=0))(X)
-#     X = Dense(len(classess), activation='softmax', kernel_initializer = glorot_uniform(seed=0))(X)
-
-    # Create model
-    model = Model(inputs = X_input, outputs = X, name = 'Fourier-Neural-Operator')
-    
-    return model
+    def make_generator_fno(self):
+        X_input = Input(shape=(self.img_h, self.img_w, 1))
+        
+        # Example usage of the P layer
+        # X = self.P(X_input, conv_num=self.conv_num, conv_size=self.conv_size, strides=self.strides, stage=1)
+        
+        # Middle Part with FourierLayer
+        X = self.FourierLayer(X_input, stage=1)
+        X = self.FourierLayer(X, stage=2)
+        X = self.FourierLayer(X, stage=3)
+        X = self.FourierLayer(X, stage=4)
+        
+        # Example usage of the Q layer
+        # X = self.Q(X, conv_num=512, conv_size=1, strides=1, stage=1)
+        
+        # Create model
+        model = Model(inputs=X_input, outputs=X, name='Fourier-Neural-Operator')
+        
+        return model
 
 
 def make_discriminator(nang, px):
@@ -363,15 +342,15 @@ def diffusion_model(img_h, img_w, conv_num, conv_size, dropout, output_num):
     x = LayerNormalization()(x)
     x = Activation('relu')(x)
     x = Reshape((img_h//8, img_w//8, 32))(x)
-    print(f'x4 shape: {x.shape}')
+
     
     # ----- right ( up ) -----
     x = Concatenate()([x, x4])
-    print(f'x4 shape: {x.shape}')
+
     x = block(x, x_ts)
     
     x = UpSampling2D(2)(x)
-    print(f'x8 shape: {x.shape}')
+
     x = Concatenate()([x, x8])
     x = block(x, x_ts)
     x = UpSampling2D(2)(x)
