@@ -1,7 +1,7 @@
 import tifffile
 import os
 from ganrectf.utils import angles, nor_tomo
-from ganrectf.ganrec import GANtomo
+from ganrectf.ganrec_diffuser import GANtomo
 
 
 def main():
@@ -9,7 +9,7 @@ def main():
     nang, px = prj.shape
     ang = angles(nang)
     prj = nor_tomo(prj)
-    gan_tomo_object = GANtomo(prj, ang, iter_num=2000)
+    gan_tomo_object = GANtomo(prj, ang, iter_num=2000, recon_monitor=False)
     rec = gan_tomo_object.recon
     tifffile.imwrite("./test_results/tooth_recon.tiff", rec)
 

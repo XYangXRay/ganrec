@@ -139,6 +139,75 @@ class RECONmonitor:
 
     def close_plot(self):
         plt.close()
+        
+        
+class RECONmonitor:
+    def __init__(self, recon_target, img_input):
+        self.fig, self.axs = plt.subplots(2, 2, figsize=(16, 8))
+        self.recon_target = recon_target
+        self.update_rate = 100
+        self.img_input = img_input
+        self.img_h, self.img_w = img_input.shape
+        self.epoch = 0
+        self.plot_y1, self.plot_y2 = [], []
+        if self.recon_target == "tomo":
+            self.plot_txt = "Sinogram"
+        elif self.recon_target == "phase":
+            self.plot_txt = "Intensity"
+        self.__initial_plot()
+
+    def __initial_plot(self):
+        self.im0 = self.axs[0, 0].imshow(self.img_input, cmap="gray")
+        self.axs[0, 0].set_title(self.plot_txt)
+        self.fig.colorbar(self.im0, ax=self.axs[0, 0])
+        self.axs[0, 0].set_aspect("equal", "box")
+        self.im1 = self.axs[1, 0].imshow(self.img_input, cmap="jet")
+        self.tx1 = self.axs[1, 0].set_title("Difference of " + self.plot_txt + " for iteration 0")
+        self.fig.colorbar(self.im1, ax=self.axs[1, 0])
+        self.axs[1, 0].set_aspect("equal")
+        self.im2 = self.axs[0, 1].imshow(np.zeros((self.img_w, self.img_w)), cmap="gray")
+        self.fig.colorbar(self.im2, ax=self.axs[0, 1])
+        self.axs[0, 1].set_title("Reconstruction")
+        (self.im3,) = self.axs[1, 1].plot([], [], "r-")
+        self.axs[1, 1].set_title("Reconstruction loss")
+        self.axs[1, 1].set_yscale("log")
+        plt.tight_layout()
+
+    def update_plot(self, step_result):      
+        self.epoch = self.epoch+1 
+        self.plot_x = np.arange(self.epoch)
+        self.plot_y1.append(step_result['g_loss'].numpy())
+        self.plot_y2.append(step_result['d_loss'].numpy())
+        
+        if (self.epoch + 1) % self.update_rate == 0:
+            img_rec = np.reshape(step_result['recon'], (self.img_w, self.img_w))
+            prj_rec = np.reshape(step_result['prj_rec'], (self.img_h, self.img_w))
+            img_diff = np.abs(prj_rec - self.img_input)
+            self.tx1.set_text("Difference of " + self.plot_txt + " for iteration {0}".format(self.epoch))
+            vmax = np.max(img_diff)
+            vmin = np.min(img_diff)
+            self.im1.set_data(img_diff)
+            self.im1.set_clim(vmin, vmax)
+            self.im2.set_data(img_rec)
+            vmax = np.max(img_rec)
+            vmin = np.min(img_rec)
+            self.im2.set_clim(vmin, vmax)
+            self.axs[1, 1].plot(self.plot_x, self.plot_y1, "r-")
+            self.axs[1, 1].plot(self.plot_x, self.plot_y2, "b-")
+            
+            plt.tight_layout()
+            if in_notebook():
+                clear_output(wait=True)
+                display(self.fig)
+                plt.pause(0.001)
+            else:
+                plt.ion()  # Turn on interactive mode
+                plt.draw()
+                plt.pause(0.001)
+
+    def close_plot(self):
+        plt.close()        
+
 
 
 def display_strain_tensor(tensor, profile_index=None):
@@ -250,3 +319,35 @@ def save_tiff(image, filename):
     image = np.array(image, dtype=np.float32)
     # Save the image
     tifffile.imwrite(filename, image)
+    
+    
+def pad_to_divisible_by_8(image):
+    """
+    Pads the image width to the nearest value that is divisible by 8 if it is not already.
+
+    Args:
+        image: A 3D numpy array of shape [height, width, channels].
+
+    Returns:
+        A padded image with width divisible by 8.
+    """
+    # Ensure the input is a numpy array
+    image = np.array(image)
+    
+    # Get the shape of the image
+    height, width = image.shape
+
+    # Check if width is divisible by 8
+    if width % 8 == 0:
+        return image
+
+    # Calculate padding needed to make width divisible by 8
+    new_width = ((width // 8) + 1) * 8
+    pad_width = (new_width - width)//2
+
+    # Pad the image width
+    pad_widths = ((0, 0), (pad_width, pad_width))
+    padded_image = np.pad(image, pad_widths, mode='constant')
+
+    return padded_image
+
