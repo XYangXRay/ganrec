@@ -2,7 +2,7 @@ from pickle import TRUE
 
 import tensorflow as tf
 from tensorflow.keras import Input, Model, Sequential
-from tensorflow.keras.initializers import glorot_uniform, HeNormal, HeUniform
+from tensorflow.keras.initializers import glorot_uniform, glorot_normal, HeNormal, HeUniform
 from tensorflow.keras.layers import (
     Activation,
     Add,
@@ -26,7 +26,7 @@ from tensorflow.keras.layers import (
 
 
 def model_initializer():
-    return glorot_uniform()
+    return glorot_normal()
 
 def dense_norm(units, dropout, apply_batchnorm=False):
     initializer = tf.random_normal_initializer()

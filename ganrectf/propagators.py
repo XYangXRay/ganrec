@@ -7,7 +7,7 @@ class TomoRadon:
     def __init__(self, rec, ang):
         self.rec = rec
         self.ang = ang
-
+        
     def compute(self):
         nang = self.ang.shape[0]
         img = tf.transpose(self.rec, [3, 1, 2, 0])
@@ -16,6 +16,7 @@ class TomoRadon:
         sino = tf.reduce_mean(img, 1, name=None)
         sino = tf.transpose(sino, [2, 0, 1])
         sino = tf.reshape(sino, [sino.shape[0], sino.shape[1], sino.shape[2], 1])
+
         return sino
 
 

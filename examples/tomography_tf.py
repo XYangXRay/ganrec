@@ -9,10 +9,9 @@ def main():
     nang, px = prj.shape
     ang = angles(nang)
     prj = nor_tomo(prj)
-    gan_tomo_object = GANtomo(prj, ang, iter_num=2000, recon_monitor=False)
+    gan_tomo_object = GANtomo(prj, ang, iter_num=2000)
     rec = gan_tomo_object.recon
     tifffile.imwrite("./test_results/tooth_recon.tiff", rec)
-
 
 if __name__ == "__main__":
     main()

@@ -3,6 +3,7 @@ import numpy as np
 from numpy.fft import fftfreq
 import tifffile
 import matplotlib.pyplot as plt
+from skimage.metrics import structural_similarity as ssim
 from IPython.display import display, clear_output
 
 
@@ -182,11 +183,12 @@ class RECONmonitor:
         if (self.epoch + 1) % self.update_rate == 0:
             img_rec = np.reshape(step_result['recon'], (self.img_w, self.img_w))
             prj_rec = np.reshape(step_result['prj_rec'], (self.img_h, self.img_w))
-            img_diff = np.abs(prj_rec - self.img_input)
+            # img_diff = np.abs(prj_rec - self.img_input)
+            ssim_index, ssim_map = ssim(prj_rec, self.img_input, full=True)
             self.tx1.set_text("Difference of " + self.plot_txt + " for iteration {0}".format(self.epoch))
-            vmax = np.max(img_diff)
-            vmin = np.min(img_diff)
-            self.im1.set_data(img_diff)
+            vmax = np.max(ssim_map)
+            vmin = np.min(ssim_map)
+            self.im1.set_data(ssim_map)
             self.im1.set_clim(vmin, vmax)
             self.im2.set_data(img_rec)
             vmax = np.max(img_rec)

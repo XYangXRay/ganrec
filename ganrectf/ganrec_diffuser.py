@@ -48,6 +48,15 @@ def l1_loss(img1, img2):
 def l2_loss(img1, img2):
     return tf.square(tf.reduce_mean(tf.abs(img1 - img2)))
 
+def ssim_loss(y_true, y_pred):
+    # Calculate SSIM index (the higher, the better)
+    ssim_index = tf.image.ssim(y_true, y_pred, max_val=1.0)
+    
+    # SSIM index is between -1 and 1, convert to a loss (the lower, the better)
+    ssim_loss = 1.0 - ssim_index
+    
+    # Return the mean SSIM loss over the batch
+    return tf.reduce_mean(ssim_loss)
 
 # @tf.function
 def generator_loss(fake_output, img_output, pred, l1_ratio):
@@ -55,7 +64,8 @@ def generator_loss(fake_output, img_output, pred, l1_ratio):
         tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output, labels=tf.ones_like(fake_output))
         )
-        + l1_loss(img_output, pred) * l1_ratio
+        + (l1_loss(img_output, pred) + ssim_loss(img_output, pred)*0.1) * l1_ratio
+        
     )
     return gen_loss
 
@@ -108,13 +118,7 @@ class GANtomo:
         self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
         self.generator.compile()
         self.discriminator.compile()
-
-    @tf.function
-    # def tfnor_tomo(self, img):
-    #     img = tf.image.per_image_standardization(img)
-    #     img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
-    #     return img
-    
+    @tf.function()
     def tfnor_tomo(self, data):
         # Calculate the mean and standard deviation of the data
         mean = tf.reduce_mean(data)
@@ -125,7 +129,6 @@ class GANtomo:
         standardized_min = tf.reduce_min(standardized_data)
         # Shift the data to start from 0
         shifted_data = standardized_data - standardized_min
-
         return shifted_data
 
     @tf.function
@@ -157,6 +160,105 @@ class GANtomo:
         if self.init_wpath:
             self.generator.load_weights(self.init_wpath + "generator.h5")
             print("generator is initilized")
+            self.discriminator.load_weights(self.init_wpath + "discriminator.h5")
+        self.x = tf.random.normal((1, self.img_w, self.img_w, 32))
+        self.t = tf.random.normal((1, 1))
+        ###########################################################################
+        # Reconstruction process monitor
+        pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
+        if self.recon_monitor:
+            recon_monitor = RECONmonitor("tomo", self.prj_input)
+        ###########################################################################
+        for epoch in range(self.iter_num):
+            ###########################################################################
+            ## Call the rconstruction step
+            step_result = self.recon_step(prj, ang)
+            pbar.set_postfix(G_loss=step_result["g_loss"].numpy(), D_loss=step_result["d_loss"].numpy())
+            pbar.update(1) 
+            if self.recon_monitor:
+                recon_monitor.update_plot(step_result)          
+        if self.save_wpath != None:
+            self.generator.save(self.save_wpath + "generator.h5")
+            self.discriminator.save(self.save_wpath + "discriminator.h5")
+        if self.recon_monitor:
+            recon_monitor.close_plot()
+        return np.reshape(step_result['recon'].numpy().astype(np.float32), (self.img_w, self.img_w))
+    
+    
+class GANrec:
+    def __init__(self, data_input, Propagator, **kwargs):
+        tomo_args = config["GANrec"]
+        tomo_args.update(**kwargs)
+        super(GANrec, self).__init__()
+        tf_configures()
+        self.data_input = data_input["input_img"]
+        self.prj_parameters = data_input["parameters"]
+        self.img_h, self.img_w = data_input["input_img"].shape
+        self.iter_num = tomo_args["iter_num"]
+        self.conv_num = tomo_args["conv_num"]
+        self.conv_size = tomo_args["conv_size"]
+        self.dropout = tomo_args["dropout"]
+        self.l1_ratio = tomo_args["l1_ratio"]
+        self.g_learning_rate = tomo_args["g_learning_rate"]
+        self.d_learning_rate = tomo_args["d_learning_rate"]
+        self.save_wpath = tomo_args["save_wpath"]
+        self.init_wpath = tomo_args["init_wpath"]
+        self.init_model = tomo_args["init_model"]
+        self.recon_monitor = tomo_args["recon_monitor"]
+        self.propagator = Propagator
+        self.generator = None
+        self.discriminator = None
+        self.generator_optimizer = None
+        self.discriminator_optimizer = None
+
+    def make_model(self):
+        self.generator = diffusion_model(self.img_w, self.img_w)
+        self.discriminator = make_discriminator(self.img_h, self.img_w)
+        self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
+        self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
+        self.generator.compile()
+        self.discriminator.compile()
+    @tf.function()
+    def tfnor_data(self, data):
+        # Calculate the mean and standard deviation of the data
+        mean = tf.reduce_mean(data)
+        std = tf.math.reduce_std(data)
+        # Standardize the data (z-score normalization)
+        standardized_data = (data - mean) / std
+        # Find the minimum value in the standardized data
+        standardized_min = tf.reduce_min(standardized_data)
+        # Shift the data to start from 0
+        shifted_data = standardized_data - standardized_min
+        return shifted_data
+
+    @tf.function
+    def recon_step(self, ):
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:           
+            recon = self.generator([self.x, self.t])
+            recon = self.tfnor_tomo(recon)
+            prj_rec = self.propagator(recon, self.prj_parameters).compute()
+            prj_rec = self.tfnor_tomo(prj_rec)
+            real_output = self.discriminator(prj, training=True)
+            fake_output = self.discriminator(prj_rec, training=True)
+            g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
+            d_loss = discriminator_loss(real_output, fake_output)
+        gradients_of_generator = gen_tape.gradient(g_loss, self.generator.trainable_variables)
+        gradients_of_discriminator = disc_tape.gradient(d_loss, self.discriminator.trainable_variables)
+        self.generator_optimizer.apply_gradients(zip(gradients_of_generator, self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(
+            zip(gradients_of_discriminator, self.discriminator.trainable_variables)
+        )
+        return {"recon": recon, "prj_rec": prj_rec, "g_loss": g_loss, "d_loss": d_loss}
+    @property
+    def recon(self):
+        # prj = np.reshape(self.prj_input, (1, self.img_h, self.img_w, 1))
+        prj = tf.cast(prj, dtype=tf.float32)
+        prj = self.tfnor_data(prj)
+        ang = tf.cast(self.angle, dtype=tf.float32)
+        self.make_model()
+        if self.init_wpath:
+            self.generator.load_weights(self.init_wpath + "generator.h5")
+            print("Generator is initilized")
             self.discriminator.load_weights(self.init_wpath + "discriminator.h5")
         self.x = tf.random.normal((1, self.img_w, self.img_w, 32))
         self.t = tf.random.normal((1, 1))
