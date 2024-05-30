@@ -1,1 +1,3 @@
 ganrc/_version.py export-subst
+ganrectf/_version.py export-subst
+_version.py export-subst

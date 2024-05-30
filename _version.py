@@ -53,7 +53,7 @@ def get_config() -> VersioneerConfig:
     cfg.style = "pep440-post"
     cfg.tag_prefix = "v"
     cfg.parentdir_prefix = "ganrec-"
-    cfg.versionfile_source = "ganrectf/_version.py"
+    cfg.versionfile_source = "_version.py"
     cfg.verbose = False
     return cfg
 
