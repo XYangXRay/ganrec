@@ -20,12 +20,12 @@ exclude = '''
 '''
 
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "GANrec"
-version = "0.1.0"
+version = "0.2.0"
 description = "A deep neural network data reconstruction platform"
 authors = [
     { name = "Xiaogang Yang", email = "xiaogang.yang@outlook.com" }
@@ -40,7 +40,12 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "numpy>=1.19.2"
+    "numpy>=1.19.2",
+    "tifffile>=2023.12.9",
+    "matplotlib>=3.3.2",
+    "scikit-image>=0.19.3",
+    "ipython>=8.12.3",
+    "tqdm>=4.65.0",
 ]
 
 [project.optional-dependencies]
@@ -52,12 +57,17 @@ pytorch = ["pytorch>=2.0.0"]
 homepage = "https://github.com/XYangXRay/ganrec"
 repository = "https://github.com/XYangXRay/ganrec"
 documentation = "https://github.com/XYangXRay/ganrec"
-changelog = "https://your_project_changelog.com"
+
+
+
+[tool.hatch.build.targets.wheel]
+include = ["ganrectf", "ganrectorch"]
+
+
 
 [tool.setuptools.packages.find]
 where = ["ganrectf", "ganrectorch"]
 exclude = ["tests*"]
 
-[tool.setuptools.scripts]
-your_script = "your_module:main_function"
+
 
