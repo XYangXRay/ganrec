@@ -3,9 +3,9 @@ import importlib
 import numpy as np
 import tensorflow as tf
 
-major, minor, _ = tf.__version__.split('.')
+major, minor, _ = tf.__version__.split(".")
 if int(major) > 2 or (int(major) == 2 and int(minor) > 9):
-    from tensorflow.keras import KerasTensor    
+    from tensorflow.keras import KerasTensor
 else:
     from keras.engine.keras_tensor import KerasTensor
 
@@ -40,9 +40,7 @@ Regularizer = Union[None, dict, str, Callable, tf.keras.regularizers.Regularizer
 Constraint = Union[None, dict, str, Callable, tf.keras.constraints.Constraint]
 Activation = Union[None, str, Callable]
 if importlib.util.find_spec("tensorflow.keras.optimizers.legacy") is not None:
-    Optimizer = Union[
-        tf.keras.optimizers.Optimizer, tf.keras.optimizers.legacy.Optimizer, str
-    ]
+    Optimizer = Union[tf.keras.optimizers.Optimizer, tf.keras.optimizers.legacy.Optimizer, str]
 else:
     Optimizer = Union[tf.keras.optimizers.Optimizer, str]
 
@@ -59,6 +57,7 @@ TensorLike = Union[
 FloatTensorLike = Union[tf.Tensor, float, np.float16, np.float32, np.float64]
 AcceptableDTypes = Union[tf.DType, np.dtype, type, int, str, None]
 
+
 def to_4D_image(image):
     """Convert 2/3/4D image to 4D image.
 
@@ -69,11 +68,7 @@ def to_4D_image(image):
       4D `Tensor` with the same type.
     """
     with tf.control_dependencies(
-        [
-            tf.debugging.assert_rank_in(
-                image, [2, 3, 4], message="`image` must be 2/3/4D tensor"
-            )
-        ]
+        [tf.debugging.assert_rank_in(image, [2, 3, 4], message="`image` must be 2/3/4D tensor")]
     ):
         ndims = image.get_shape().ndims
         if ndims is None:
@@ -84,6 +79,8 @@ def to_4D_image(image):
             return image[None, :, :, :]
         else:
             return image
+
+
 def _dynamic_to_4D_image(image):
     shape = tf.shape(image)
     original_rank = tf.rank(image)
@@ -113,9 +110,7 @@ def from_4D_image(image, ndims):
     Returns:
       `ndims`-D `Tensor` with the same type.
     """
-    with tf.control_dependencies(
-        [tf.debugging.assert_rank(image, 4, message="`image` must be 4D tensor")]
-    ):
+    with tf.control_dependencies([tf.debugging.assert_rank(image, 4, message="`image` must be 4D tensor")]):
         if isinstance(ndims, tf.Tensor):
             return _dynamic_from_4D_image(image, ndims)
         elif ndims == 2:
@@ -124,8 +119,8 @@ def from_4D_image(image, ndims):
             return tf.squeeze(image, [0])
         else:
             return image
-        
-        
+
+
 def _dynamic_from_4D_image(image, original_rank):
     shape = tf.shape(image)
     # 4D image <= [N, H, W, C] or [N, C, H, W]
@@ -136,8 +131,10 @@ def _dynamic_from_4D_image(image, original_rank):
     new_shape = shape[begin:end]
     return tf.reshape(image, new_shape)
 
+
 def get_ndims(image):
     return image.get_shape().ndims or tf.rank(image)
+
 
 def tfrotate(
     images: TensorLike,
@@ -199,6 +196,7 @@ def tfrotate(
         )
         return from_4D_image(output, original_ndims)
 
+
 def transform(
     images: TensorLike,
     transforms: TensorLike,
@@ -253,9 +251,7 @@ def transform(
     """
     with tf.name_scope(name or "transform"):
         image_or_images = tf.convert_to_tensor(images, name="images")
-        transform_or_transforms = tf.convert_to_tensor(
-            transforms, name="transforms", dtype=tf.dtypes.float32
-        )
+        transform_or_transforms = tf.convert_to_tensor(transforms, name="transforms", dtype=tf.dtypes.float32)
         if image_or_images.dtype.base_dtype not in _IMAGE_DTYPES:
             raise TypeError("Invalid dtype %s." % image_or_images.dtype)
         images = to_4D_image(image_or_images)
@@ -264,15 +260,10 @@ def transform(
         if output_shape is None:
             output_shape = tf.shape(images)[1:3]
 
-        output_shape = tf.convert_to_tensor(
-            output_shape, tf.dtypes.int32, name="output_shape"
-        )
+        output_shape = tf.convert_to_tensor(output_shape, tf.dtypes.int32, name="output_shape")
 
         if not output_shape.get_shape().is_compatible_with([2]):
-            raise ValueError(
-                "output_shape must be a 1-D Tensor of 2 elements: "
-                "new_height, new_width"
-            )
+            raise ValueError("output_shape must be a 1-D Tensor of 2 elements: " "new_height, new_width")
 
         if len(transform_or_transforms.get_shape()) == 1:
             transforms = transform_or_transforms[None]
@@ -282,14 +273,9 @@ def transform(
             transforms = transform_or_transforms
         else:
             transforms = transform_or_transforms
-            raise ValueError(
-                "transforms should have rank 1 or 2, but got rank %d"
-                % len(transforms.get_shape())
-            )
+            raise ValueError("transforms should have rank 1 or 2, but got rank %d" % len(transforms.get_shape()))
 
-        fill_value = tf.convert_to_tensor(
-            fill_value, dtype=tf.float32, name="fill_value"
-        )
+        fill_value = tf.convert_to_tensor(fill_value, dtype=tf.float32, name="fill_value")
         output = tf.raw_ops.ImageProjectiveTransformV3(
             images=images,
             transforms=transforms,
@@ -299,7 +285,7 @@ def transform(
             fill_value=fill_value,
         )
         return from_4D_image(output, original_ndims)
-    
+
 
 def angles_to_projective_transforms(
     angles: TensorLike,
@@ -321,9 +307,7 @@ def angles_to_projective_transforms(
       given to `transform` op.
     """
     with tf.name_scope(name or "angles_to_projective_transforms"):
-        angle_or_angles = tf.convert_to_tensor(
-            angles, name="angles", dtype=tf.dtypes.float32
-        )
+        angle_or_angles = tf.convert_to_tensor(angles, name="angles", dtype=tf.dtypes.float32)
         if len(angle_or_angles.get_shape()) == 0:
             angles = angle_or_angles[None]
         elif len(angle_or_angles.get_shape()) == 1:
@@ -332,14 +316,8 @@ def angles_to_projective_transforms(
             raise ValueError("angles should have rank 0 or 1.")
         cos_angles = tf.math.cos(angles)
         sin_angles = tf.math.sin(angles)
-        x_offset = (
-            (image_width - 1)
-            - (cos_angles * (image_width - 1) - sin_angles * (image_height - 1))
-        ) / 2.0
-        y_offset = (
-            (image_height - 1)
-            - (sin_angles * (image_width - 1) + cos_angles * (image_height - 1))
-        ) / 2.0
+        x_offset = ((image_width - 1) - (cos_angles * (image_width - 1) - sin_angles * (image_height - 1))) / 2.0
+        y_offset = ((image_height - 1) - (sin_angles * (image_width - 1) + cos_angles * (image_height - 1))) / 2.0
         num_angles = tf.shape(angles)[0]
         return tf.concat(
             values=[
