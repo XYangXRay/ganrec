@@ -126,39 +126,110 @@ class RECONmonitor:
     def close_plot(self):
         plt.close()
 
-def display_strain_tensor(tensor):
+def display_strain_tensor(tensor, profile_index=None):
     """
-    Display the six components of the strain tensor.
+    Display the components of the strain tensor and a single horizontal profile plot.
 
     Parameters:
-    tensor (numpy.ndarray): A numpy array of shape [6, h, w] representing the six components of the strain tensor.
+    tensor (numpy.ndarray): A numpy array of shape [3 or 6, h, w] representing the components of the strain tensor.
+    profile_index (int): The index of the row for the profile plot. If None, the middle row is used.
 
-    Components are expected to be in the following order:
+    Components are expected to be in the following order if 6 components:
     0: ε_xx
-    1: ε_xy
-    2: ε_xz
-    3: ε_yx
-    4: ε_yz
-    5: ε_zz
+    1: ε_yy
+    2: ε_zz
+    3: ε_xy
+    4: ε_xz
+    5: ε_yz
+
+    Components are expected to be in the following order if 3 components:
+    0: ε_xx
+    1: ε_yy
+    2: ε_xy
     """
-    if tensor.shape[0] != 6:
-        raise ValueError("Input tensor must have 6 components in the first dimension")
-    component_names = [r'$\epsilon_{xx}$', r'$\epsilon_{xy}$', r'$\epsilon_{xz}$', 
-                       r'$\epsilon_{yx}$', r'$\epsilon_{yz}$', r'$\epsilon_{zz}$']
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    if tensor.shape[0] not in [3, 6]:
+        raise ValueError("Input tensor must have 3 or 6 components in the first dimension")
+
+    component_names = [r'$\epsilon_{xx}$', r'$\epsilon_{yy}$', r'$\epsilon_{zz}$', 
+                       r'$\epsilon_{xy}$', r'$\epsilon_{xz}$', r'$\epsilon_{yz}$'] if tensor.shape[0] == 6 else \
+                      [r'$\epsilon_{xx}$', r'$\epsilon_{yy}$', r'$\epsilon_{xy}$']
+    
+    rows, cols = (2, 3) if tensor.shape[0] == 6 else (1, 3)
+    fig, axes = plt.subplots(rows + 1, cols, figsize=(18, 15 if tensor.shape[0] == 6 else 10))
     axes = axes.ravel()
+
+    # Find the global minimum and maximum for the color scale
     vmin = np.min(tensor)
     vmax = np.max(tensor)
-    for i in range(6):
-        ax = axes[i]
-        im = ax.imshow(tensor[i], cmap='viridis', aspect='equal', vmin=vmin, vmax=vmax)
-        ax.set_title(component_names[i])
-        ax.axis('off')
-    fig.subplots_adjust(right=0.85)  # Adjust the right space to fit the colorbar
-    cbar_ax = fig.add_axes([0.87, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+
+    if profile_index is None:
+        profile_index = tensor.shape[1] // 2  # Default to the middle row
+
+    profile_colors = ['r', 'g', 'b', 'c', 'm', 'y']
+    
+    # Plot each component and its profile position marker
+    for i in range(tensor.shape[0]):
+        row, col = divmod(i, cols)
+        ax_image = axes[row * cols + col]
+        im = ax_image.imshow(tensor[i], cmap='gray', aspect='equal', vmin=vmin, vmax=vmax)
+        ax_image.set_title(component_names[i], fontsize=16)
+        ax_image.axis('off')
+
+        # Mark the profile position
+        ax_image.axhline(profile_index, color=profile_colors[i], linestyle='--', linewidth=2)
+
+    # Plot the profile on the last row
+    ax_profile = fig.add_subplot(rows + 1, 1, rows + 1)
+    for i in range(tensor.shape[0]):
+        profile = tensor[i, profile_index, :]
+        ax_profile.plot(profile, label=component_names[i], color=profile_colors[i], linewidth=2)
+    ax_profile.set_title(f"Profile at Row {profile_index}", fontsize=16)
+    ax_profile.legend(fontsize=14)
+    ax_profile.tick_params(axis='both', which='major', labelsize=14)
+
+    # Adjust layout to make space for the colorbar
+    fig.subplots_adjust(right=0.85)
+    
+    # Add a single colorbar for the first two rows of subplots on the right side
+    cbar_ax = fig.add_axes([0.87, 0.1, 0.02, 0.7])  # [left, bottom, width, height]
     fig.colorbar(im, cax=cbar_ax, orientation='vertical')
-    plt.tight_layout()
+    
     plt.show()
+
+
+# def display_strain_tensor(tensor):
+#     """
+#     Display the six components of the strain tensor.
+
+#     Parameters:
+#     tensor (numpy.ndarray): A numpy array of shape [6, h, w] representing the six components of the strain tensor.
+
+#     Components are expected to be in the following order:
+#     0: ε_xx
+#     1: ε_xy
+#     2: ε_xz
+#     3: ε_yx
+#     4: ε_yz
+#     5: ε_zz
+#     """
+#     if tensor.shape[0] != 6:
+#         raise ValueError("Input tensor must have 6 components in the first dimension")
+#     component_names = [r'$\epsilon_{xx}$', r'$\epsilon_{xy}$', r'$\epsilon_{xz}$', 
+#                        r'$\epsilon_{yx}$', r'$\epsilon_{yz}$', r'$\epsilon_{zz}$']
+#     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+#     axes = axes.ravel()
+#     vmin = np.min(tensor)
+#     vmax = np.max(tensor)
+#     for i in range(6):
+#         ax = axes[i]
+#         im = ax.imshow(tensor[i], cmap='viridis', aspect='equal', vmin=vmin, vmax=vmax)
+#         ax.set_title(component_names[i])
+#         ax.axis('off')
+#     fig.subplots_adjust(right=0.85)  # Adjust the right space to fit the colorbar
+#     cbar_ax = fig.add_axes([0.87, 0.15, 0.02, 0.7])  # [left, bottom, width, height]
+#     fig.colorbar(im, cax=cbar_ax, orientation='vertical')
+#     plt.tight_layout()
+#     plt.show()
 
 
 # Draw a annular shape mask to only inlcude the feature in the annular area
