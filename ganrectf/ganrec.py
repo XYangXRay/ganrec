@@ -79,6 +79,7 @@ class GANtomo:
         super(GANtomo, self).__init__()
         tf_configures()
         self.prj_input = prj_input
+        self.img_h, self.img_w = self.prj_input.shape
         self.angle = angle
         self.iter_num = tomo_args["iter_num"]
         self.conv_num = tomo_args["conv_num"]
@@ -148,16 +149,18 @@ class GANtomo:
             self.generator.load_weights(self.init_wpath + "generator.h5")
             print("generator is initilized")
             self.discriminator.load_weights(self.init_wpath + "discriminator.h5")
-        recon = np.zeros((self.iter_num, px, px, 1))
-        gen_loss = np.zeros((self.iter_num))
+        # recon = np.zeros((self.iter_num, px, px, 1))
+        # gen_loss = np.zeros((self.iter_num))
 
         ###########################################################################
         # Reconstruction process monitor
+        pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
         if self.recon_monitor:
-            plot_x, plot_loss = [], []
-            recon_monitor = RECONmonitor("tomo")
-            recon_monitor.initial_plot(self.prj_input)
-            pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
+            recon_monitor = RECONmonitor("tomo", self.prj_input)
+            # plot_x, plot_loss = [], []
+            # recon_monitor = RECONmonitor("tomo")
+            # recon_monitor.initial_plot(self.prj_input)
+            
         ###########################################################################
         for epoch in range(self.iter_num):
 
@@ -165,26 +168,30 @@ class GANtomo:
             ## Call the rconstruction step
 
             step_result = self.recon_step(prj, ang)
-            recon[epoch, :, :, :] = step_result["recon"]
-            gen_loss[epoch] = step_result["g_loss"]
+            pbar.set_postfix(G_loss=step_result["g_loss"].numpy(), D_loss=step_result["d_loss"].numpy())
+            pbar.update(1) 
+            # recon[epoch, :, :, :] = step_result["recon"]
+            # gen_loss[epoch] = step_result["g_loss"]
             ###########################################################################
             if self.recon_monitor:
-                plot_x.append(epoch)
-                plot_loss = gen_loss[: epoch + 1]
-                pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=step_result["d_loss"].numpy())
-                pbar.update(1)
-            if (epoch + 1) % 100 == 0:
-                if self.recon_monitor:
-                    prj_rec = np.reshape(step_result["prj_rec"], (nang, px))
-                    prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
-                    rec_plt = np.reshape(recon[epoch], (px, px))
-                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
+                recon_monitor.update_plot(step_result)   
+                
+                # plot_x.append(epoch)
+                # plot_loss = gen_loss[: epoch + 1]
+                
+            #     # pbar.update(1)
+            # if (epoch + 1) % 100 == 0:
+            #     if self.recon_monitor:
+            #         prj_rec = np.reshape(step_result["prj_rec"], (nang, px))
+            #         prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
+            #         rec_plt = np.reshape(recon[epoch], (px, px))
+            #         recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
         if self.save_wpath != None:
             self.generator.save(self.save_wpath + "generator.h5")
             self.discriminator.save(self.save_wpath + "discriminator.h5")
         if self.recon_monitor:
             recon_monitor.close_plot()
-        return recon[epoch].astype(np.float32)
+        return np.reshape(step_result['recon'].numpy().astype(np.float32), (self.img_w, self.img_w))
 
 
 class GANtensor:
@@ -194,6 +201,7 @@ class GANtensor:
         super(GANtensor, self).__init__()
         tf_configures()
         self.prj_input = prj_input
+        self.img_h, self.img_w = self.prj_input.shape
         self.angle = angle
         self.psi = psi
         self.iter_num = tomo_args["iter_num"]
@@ -216,7 +224,7 @@ class GANtensor:
 
     def make_model(self):
         self.generator = make_generator(
-            self.prj_input.shape[0], self.prj_input.shape[1], self.conv_num, self.conv_size, self.dropout, 6
+            self.prj_input.shape[0], self.prj_input.shape[1], self.conv_num, self.conv_size, self.dropout, 3
         )
         self.discriminator = make_discriminator(self.prj_input.shape[0], self.prj_input.shape[1])
         self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
@@ -225,22 +233,22 @@ class GANtensor:
         self.discriminator.compile()
 
     @tf.function
-    def tfnor_tomo(self, data):
-        # Calculate the mean and standard deviation of the data
-        mean = tf.reduce_mean(data)
-        std = tf.math.reduce_std(data)
-        # Standardize the data (z-score normalization)
-        standardized_data = (data - mean) / std
-        # Find the minimum value in the standardized data
-        standardized_min = tf.reduce_min(standardized_data)
-        # Shift the data to start from 0
-        shifted_data = standardized_data - standardized_min
-        return shifted_data
+    # def tfnor_tomo(self, data):
+    #     # Calculate the mean and standard deviation of the data
+    #     mean = tf.reduce_mean(data)
+    #     std = tf.math.reduce_std(data)
+    #     # Standardize the data (z-score normalization)
+    #     standardized_data = (data - mean) / std
+    #     # Find the minimum value in the standardized data
+    #     standardized_min = tf.reduce_min(standardized_data)
+    #     # Shift the data to start from 0
+    #     shifted_data = standardized_data - standardized_min
+    #     return shifted_data
 
-    # def tfnor_tomo(self, img):
-    #     img = tf.image.per_image_standardization(img)
-    #     img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
-    #     return img
+    def tfnor_tomo(self, img):
+        img = tf.image.per_image_standardization(img)
+        img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
+        return img
 
     @tf.function
     def recon_step(self, prj, ang, psi):
@@ -275,39 +283,41 @@ class GANtensor:
             self.generator.load_weights(self.init_wpath + "generator.h5")
             print("generator is initilized")
             self.discriminator.load_weights(self.init_wpath + "discriminator.h5")
-        recon = np.zeros((self.iter_num, px, px, 6))
-        gen_loss = np.zeros((self.iter_num))
+        # recon = np.zeros((self.iter_num, px, px, 6))
+        # gen_loss = np.zeros((self.iter_num))
 
         ###########################################################################
         # Reconstruction process monitor
+        pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
         if self.recon_monitor:
-            plot_x, plot_loss = [], []
-            recon_monitor = RECONmonitor("tomo")
-            recon_monitor.initial_plot(self.prj_input)
-            pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
+            recon_monitor = RECONmonitor("tensor", self.prj_input)
+            # plot_x, plot_loss = [], []
+            # recon_monitor = RECONmonitor("tomo")
+            # recon_monitor.initial_plot(self.prj_input)
+            # pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
         ###########################################################################
         for epoch in range(self.iter_num):
             step_result = self.recon_step(prj, ang, psi)
-            recon[epoch, :, :, :] = step_result["recon"]
-            gen_loss[epoch] = step_result["g_loss"]
+            # recon[epoch, :, :, :] = step_result["recon"]
+            pbar.set_postfix(G_loss=step_result["g_loss"].numpy(), D_loss=step_result["d_loss"].numpy())
+            pbar.update(1) 
+            # gen_loss[epoch] = step_result["g_loss"]
 
             ###########################################################################
             if self.recon_monitor:
-                plot_x.append(epoch)
-                plot_loss = gen_loss[: epoch + 1]
-                pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=step_result["d_loss"].numpy())
-                pbar.update(1)
-            if (epoch + 1) % 100 == 0:
-                if recon_monitor:
-                    prj_rec = np.reshape(step_result["prj_rec"], (nang, px))
-                    prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
-                    rec_plt = np.reshape(recon[epoch, :, :, 0], (px, px))
-                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
+                recon_monitor.update_plot(step_result)         
+            # if (epoch + 1) % 100 == 0:
+            #     if recon_monitor:
+            #         prj_rec = np.reshape(step_result["prj_rec"], (nang, px))
+            #         prj_diff = np.abs(prj_rec - self.prj_input.reshape((nang, px)))
+            #         rec_plt = np.reshape(recon[epoch, :, :, 0], (px, px))
+            #         recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss)
         if self.save_wpath != None:
             self.generator.save(self.save_wpath + "generator.h5")
             self.discriminator.save(self.save_wpath + "discriminator.h5")
         recon_monitor.close_plot()
-        recon_out = np.transpose(recon[epoch], axes=(2, 0, 1))
+        
+        recon_out = np.transpose(step_result['recon'][0].numpy(), axes=(2, 0, 1))
         return recon_out.astype(np.float32)
 
 
@@ -470,7 +480,7 @@ class GANphase:
         super(GANphase, self).__init__()
         tf_configures()
         self.i_input = i_input
-        self.px, _ = i_input.shape
+        self.img_h, self.img_w = self.i_input.shape
         self.energy = energy
         self.z = z
         self.pv = pv
@@ -508,12 +518,12 @@ class GANphase:
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             recon = self.generator(i_input)
             phase = tfnor_phase(recon[:, :, :, 0])
-            phase = tf.reshape(phase, [self.px, self.px])
+            phase = tf.reshape(phase, [self.img_h, self.img_w])
             absorption = (1 - tfnor_phase(recon[:, :, :, 1])) * self.abs_ratio
-            absorption = tf.reshape(absorption, [self.px, self.px])
+            absorption = tf.reshape(absorption, [self.img_h, self.img_w])
             if self.phase_only:
                 absorption = tf.zeros_like(phase)
-            phase_obj = PhaseFresnel(phase, absorption, ff, self.px)
+            phase_obj = PhaseFresnel(phase, absorption, ff, self.img_w)
             i_rec = phase_obj.compute()
             real_output = self.discriminator(i_input, training=True)
             fake_output = self.discriminator(i_rec, training=True)
@@ -529,46 +539,54 @@ class GANphase:
 
     @property
     def recon(self):
-        ff = ffactor(self.px * 2, self.energy, self.z, self.pv)
-        i_input = np.reshape(self.i_input, (1, self.px, self.px, 1))
+        ff = ffactor(self.img_w * 2, self.energy, self.z, self.pv)
+        i_input = np.reshape(self.i_input, (1, self.img_h, self.img_w, 1))
         i_input = tf.cast(i_input, dtype=tf.float32)
         self.make_model()
-        phase = np.zeros((self.iter_num, self.px, self.px))
-        absorption = np.zeros((self.iter_num, self.px, self.px))
-        gen_loss = np.zeros(self.iter_num)
+        # phase = np.zeros((self.iter_num, self.img_h, self.img_w))
+        # absorption = np.zeros((self.iter_num, self.img_h, self.img_w))
+        # gen_loss = np.zeros(self.iter_num)
 
         ###########################################################################
         # Reconstruction process monitor
+        pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
         if self.recon_monitor:
-            plot_x, plot_loss = [], []
-            recon_monitor = RECONmonitor("phase")
-            recon_monitor.initial_plot(self.i_input)
-            pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
+            recon_monitor = RECONmonitor("phase", self.i_input)
+            # plot_x, plot_loss = [], []
+            # recon_monitor = RECONmonitor("phase")
+            # recon_monitor.initial_plot(self.i_input)
+            # pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
         ###########################################################################
         for epoch in range(self.iter_num):
 
             ###########################################################################
             ## Call the rconstruction step
-            step_results = self.rec_step(i_input, ff)
-            phase[epoch, :, :] = step_results["phase"]
-            absorption[epoch, :, :] = step_results["absorption"]
-            i_rec = step_results["i_rec"]
-            gen_loss[epoch] = step_results["g_loss"]
-            d_loss = step_results["d_loss"]
+            step_result = self.rec_step(i_input, ff)
+            pbar.set_postfix(G_loss=step_result["g_loss"].numpy(), D_loss=step_result["d_loss"].numpy())
+            pbar.update(1) 
+            # phase[epoch, :, :] = step_results["phase"]
+            # absorption[epoch, :, :] = step_results["absorption"]
+            # i_rec = step_results["i_rec"]
+            # gen_loss[epoch] = step_results["g_loss"]
+            # d_loss = step_results["d_loss"]
             ###########################################################################
             if self.recon_monitor:
-                plot_x.append(epoch)
-                plot_loss = gen_loss[: epoch + 1]
-                pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=d_loss.numpy())
-                pbar.update(1)
-            if (epoch + 1) % 100 == 0:
-                if recon_monitor:
-                    i_rec = np.reshape(i_rec, (self.px, self.px))
-                    i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
-                    phase_plt = np.reshape(phase[epoch], (self.px, self.px))
-                    recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
-        recon_monitor.close_plot()
-        return absorption[epoch].astype(np.float32), phase[epoch].astype(np.float32)
+                recon_monitor.update_plot(step_result)   
+                # plot_x.append(epoch)
+                # plot_loss = gen_loss[: epoch + 1]
+                # pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=d_loss.numpy())
+                # pbar.update(1)
+            # if (epoch + 1) % 100 == 0:
+            #     if recon_monitor:
+            #         i_rec = np.reshape(i_rec, (self.px, self.px))
+            #         i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
+            #         phase_plt = np.reshape(phase[epoch], (self.px, self.px))
+            #         recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
+        if self.recon_monitor:
+            recon_monitor.close_plot()
+        absorption = np.reshape(step_result['absorption'].numpy().astype(np.float32), (self.img_w, self.img_w))
+        phase = np.reshape(step_result['phase'].numpy().astype(np.float32), (self.img_w, self.img_w))
+        return absorption, phase
 
 
 class GANdiffraction:

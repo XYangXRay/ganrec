@@ -51,18 +51,29 @@ class TensorRadon:
         sin_2angles = tf.expand_dims(tf.sin(2 * angles), 1)
         sin_angles_sin_2psi = tf.expand_dims(tf.sin(angles) * tf.sin(2 * self.psi), 1)
         cos_angles_sin_2psi = tf.expand_dims(tf.cos(angles) * tf.sin(2 * self.psi), 1)
-        proj_strain_ws = (
-            tf.multiply(proj_strain_comp[0], cos_squared * sin_psi_squared)
-            + tf.multiply(proj_strain_comp[1], sin_squared * sin_psi_squared)
-            + tf.multiply(proj_strain_comp[2], cos_psi_squared)
-            + tf.multiply(proj_strain_comp[3], sin_2angles * sin_psi_squared)
-            + tf.multiply(proj_strain_comp[4], sin_angles_sin_2psi)
-            + tf.multiply(proj_strain_comp[5], cos_angles_sin_2psi)
-        )
+        if proj_strain_comp.shape[0] == 6:
+            proj_strain_ws = (
+                tf.multiply(proj_strain_comp[0], cos_squared * sin_psi_squared)
+                + tf.multiply(proj_strain_comp[1], sin_squared * sin_psi_squared)
+                + tf.multiply(proj_strain_comp[2], cos_psi_squared)
+                + tf.multiply(proj_strain_comp[3], sin_2angles * sin_psi_squared)
+                + tf.multiply(proj_strain_comp[4], sin_angles_sin_2psi)
+                + tf.multiply(proj_strain_comp[5], cos_angles_sin_2psi)
+                )
+        elif proj_strain_comp.shape[0] == 3:
+            proj_strain_ws = (
+                tf.multiply(proj_strain_comp[0], cos_squared * sin_psi_squared)
+                + tf.multiply(proj_strain_comp[1], sin_squared * sin_psi_squared)
+                # + tf.multiply(proj_strain_comp[2], cos_psi_squared)
+                + tf.multiply(proj_strain_comp[2], sin_2angles * sin_psi_squared)
+                # + tf.multiply(proj_strain_comp[4], sin_angles_sin_2psi)
+                # + tf.multiply(proj_strain_comp[5], cos_angles_sin_2psi)
+                )
+            
         # print(f'thickness shape is {thickness.shape}')
         # print(f'proj_strain_ws shape is {proj_strain_ws.shape}')
-        # tensor_sino = tf.where(thickness > 0.05, tf.math.divide_no_nan(self.tfnor_data(proj_strain_ws), thickness), 0)
-        tensor_sino = proj_strain_ws
+        tensor_sino = tf.where(thickness > 0.05, tf.math.divide_no_nan(self.tfnor_data(proj_strain_ws), thickness), 0)
+        # tensor_sino = proj_strain_ws
         # tensor_sino = tf.math.divide_no_nan(proj_strain_ws, thickness)
         tensor_sino = tf.reshape(tensor_sino, [1, tensor_sino.shape[0], tensor_sino.shape[1], 1])
         return tensor_sino

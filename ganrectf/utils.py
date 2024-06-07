@@ -3,6 +3,7 @@ import numpy as np
 from numpy.fft import fftfreq
 import tifffile
 import matplotlib.pyplot as plt
+from skimage.metrics import structural_similarity as ssim
 from IPython.display import display, clear_output
 
 
@@ -139,6 +140,83 @@ class RECONmonitor:
 
     def close_plot(self):
         plt.close()
+        
+class RECONmonitor:
+    def __init__(self, recon_target, img_input):
+        self.fig, self.axs = plt.subplots(2, 2, figsize=(16, 8))
+        self.recon_target = recon_target
+        self.update_rate = 100
+        self.img_input = img_input
+        self.img_h, self.img_w = img_input.shape
+        self.epoch = 0
+        self.plot_y1, self.plot_y2 = [], []
+        if self.recon_target in ["tomo", "tensor"]:
+            self.plot_txt = "Sinogram"
+        elif self.recon_target == "phase":
+            self.plot_txt = "Intensity"
+        self.__initial_plot()
+
+    def __initial_plot(self):
+        self.im0 = self.axs[0, 0].imshow(self.img_input, cmap="gray")
+        self.axs[0, 0].set_title(self.plot_txt)
+        self.fig.colorbar(self.im0, ax=self.axs[0, 0])
+        self.axs[0, 0].set_aspect("equal", "box")
+        self.im1 = self.axs[1, 0].imshow(self.img_input, cmap="jet")
+        self.tx1 = self.axs[1, 0].set_title("SSIM map of " + self.plot_txt + " for iteration 0")
+        self.fig.colorbar(self.im1, ax=self.axs[1, 0])
+        self.axs[1, 0].set_aspect("equal")
+        self.im2 = self.axs[0, 1].imshow(np.zeros((self.img_w, self.img_w)), cmap="gray")
+        self.fig.colorbar(self.im2, ax=self.axs[0, 1])
+        self.axs[0, 1].set_title("Reconstruction")
+        (self.im3,) = self.axs[1, 1].plot([], [], "r-")
+        self.axs[1, 1].set_title("Reconstruction loss")
+        self.axs[1, 1].set_yscale("log")
+        plt.tight_layout()
+
+    def update_plot(self, step_result):      
+        self.epoch = self.epoch+1 
+        self.plot_x = np.arange(self.epoch)
+        self.plot_y1.append(step_result['g_loss'].numpy())
+        self.plot_y2.append(step_result['d_loss'].numpy())
+        
+        if (self.epoch + 1) % self.update_rate == 0:
+            if self.recon_target == "tomo":
+                img_rec = np.reshape(step_result['recon'], (self.img_w, self.img_w))
+                prj_rec = np.reshape(step_result['prj_rec'], (self.img_h, self.img_w))
+            elif self.recon_target == "tensor":
+                img_rec = np.reshape(step_result['recon'][:,:,:,0], (self.img_w, self.img_w))
+                prj_rec = np.reshape(step_result['prj_rec'], (self.img_h, self.img_w))
+            elif self.recon_target == "phase":
+                img_rec = np.reshape(step_result['phase'], (self.img_w, self.img_w))
+                prj_rec = np.reshape(step_result['i_rec'], (self.img_h, self.img_w))
+                
+                
+            # img_diff = np.abs(prj_rec - self.img_input)
+            ssim_index, ssim_map = ssim(prj_rec, self.img_input, full=True)
+            self.tx1.set_text("SSIM map of " + self.plot_txt + " for iteration {0}".format(self.epoch))
+            vmax = np.max(ssim_map)
+            vmin = np.min(ssim_map)
+            self.im1.set_data(ssim_map)
+            self.im1.set_clim(vmin, vmax)
+            self.im2.set_data(img_rec)
+            vmax = np.max(img_rec)
+            vmin = np.min(img_rec)
+            self.im2.set_clim(vmin, vmax)
+            self.axs[1, 1].plot(self.plot_x, self.plot_y1, "r-")
+            self.axs[1, 1].plot(self.plot_x, self.plot_y2, "b-")
+            
+            plt.tight_layout()
+            if in_notebook():
+                clear_output(wait=True)
+                display(self.fig)
+                plt.pause(0.001)
+            else:
+                plt.ion()  # Turn on interactive mode
+                plt.draw()
+                plt.pause(0.001)
+
+    def close_plot(self):
+        plt.close()        
 
 def display_strain_tensor(tensor, profile_index=None):
     """
