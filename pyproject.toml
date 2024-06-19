@@ -50,7 +50,7 @@ dependencies = [
 
 [project.optional-dependencies]
 tensorflow = ["tensorflow>=2.0.0"]
-pytorch = ["pytorch>=2.0.0"]
+pytorch = ["torch>=2.0.0"]
 
 
 [project.urls]
