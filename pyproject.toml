@@ -46,12 +46,15 @@ dependencies = [
     "scikit-image>=0.19.3",
     "ipython>=8.12.3",
     "tqdm>=4.65.0",
-    "quantities",
 ]
 
 [project.optional-dependencies]
 tensorflow = ["tensorflow>=2.0.0"]
-pytorch = ["torch>=2.0.0"]
+pytorch = [
+    "torch>=2.0.0",
+    "torchvision",
+    "quantities",
+]
 
 
 [project.urls]
