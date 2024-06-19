@@ -46,6 +46,7 @@ dependencies = [
     "scikit-image>=0.19.3",
     "ipython>=8.12.3",
     "tqdm>=4.65.0",
+    "quantities",
 ]
 
 [project.optional-dependencies]
