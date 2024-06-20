@@ -17,33 +17,41 @@ Originally designed for the fields of tomography and phase retrieval, GANrec shi
 
 Installation
 
-Follow the steps below to install and set up GANrec:
+1. For the general users:
+   - Create a Conda Environment:
+   Create a new conda environment named ganrec.
 
-1. Create a Conda Environment:
-Create a new conda environment named ganrec.
+   `conda create --name ganrec python=3.11`
 
-`conda create --name ganrec python=3.8`
+   - Activate the Conda Environment:
+   Activate the newly created ganrec environment.
+   
+   `conda activate ganrec`
 
-2. Activate the Conda Environment:
-Activate the newly created ganrec environment.
+   - Install from Pypi:
+   
+   `pip install ganrec`
 
-`conda activate ganrec`
 
-3. Install tensorflow:
+2. If you want to work for some developments based on GANrec, please follow the steps below to install and set up GANrec:
+   - Create a Conda Environment:
+   Create a new conda environment named ganrec.
+   
+   `conda create --name ganrec python=3.11`
 
-https://www.tensorflow.org/install/pip
-
-4. Clone the GANrec Repository:
-Clone the GANrec repository from GitHub to your local machine.
-
-`git clone https://github.com/XYangXRay/ganrec.git`
-
-5. Install the Required Packages:
-Navigate to the main directory of the cloned repository and install the necessary packages.
-
-`cd ganrec`
-
-`python3 -m pip install -e .`
+   - Activate the Conda Environment:
+   Activate the newly created ganrec environment.
+   
+   `conda activate ganrec`
+   - Clone the GANrec Repository:
+   Clone the GANrec repository from GitHub to your local machine.
+   
+   `git clone https://github.com/XYangXRay/ganrec.git`
+   
+   - Install the Required Packages:
+   Navigate to the main directory of the cloned repository and install the necessary packages.
+   `cd ganrec`
+   `python3 -m pip install -e .`
 
 # Examples
 
