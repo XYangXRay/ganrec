@@ -75,11 +75,10 @@ exclude = ["tests*"]
 
 
 [tool.hatch.publish]
-[tool.hatch.publish.username]
-from = "env"
-key = "TWINE_USERNAME"
+[tool.hatch.publish.repository]
+url = "https://upload.pypi.org/legacy/"
 
-[tool.hatch.publish.password]
-from = "env"
-key = "TWINE_PASSWORD"
+[tool.hatch.publish.auth]
+username = "env:TWINE_USERNAME"
+password = "env:TWINE_PASSWORD"
 
