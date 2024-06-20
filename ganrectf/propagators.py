@@ -72,8 +72,8 @@ class TensorRadon:
             
         # print(f'thickness shape is {thickness.shape}')
         # print(f'proj_strain_ws shape is {proj_strain_ws.shape}')
-        tensor_sino = tf.where(thickness > 0.05, tf.math.divide_no_nan(self.tfnor_data(proj_strain_ws), thickness), 0)
-        # tensor_sino = proj_strain_ws
+        # tensor_sino = tf.where(thickness > 0.05, tf.math.divide_no_nan(self.tfnor_data(proj_strain_ws), thickness), 0)
+        tensor_sino = proj_strain_ws
         # tensor_sino = tf.math.divide_no_nan(proj_strain_ws, thickness)
         tensor_sino = tf.reshape(tensor_sino, [1, tensor_sino.shape[0], tensor_sino.shape[1], 1])
         return tensor_sino
