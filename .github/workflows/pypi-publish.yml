@@ -31,7 +31,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: hatch publish
+        run: hatch publish --user __token__
       # - name: Publish package to PyPI
       #   env:
       #     TWINE_USERNAME: __token__
