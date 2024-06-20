@@ -75,6 +75,11 @@ exclude = ["tests*"]
 
 
 [tool.hatch.publish]
-username = "env:TWINE_USERNAME"
-password = "env:TWINE_PASSWORD"
+[tool.hatch.publish.username]
+from = "env"
+key = "TWINE_USERNAME"
+
+[tool.hatch.publish.password]
+from = "env"
+key = "TWINE_PASSWORD"
 
