@@ -192,7 +192,8 @@ class RECONmonitor:
                 
                 
             # img_diff = np.abs(prj_rec - self.img_input)
-            ssim_index, ssim_map = ssim(prj_rec, self.img_input, full=True)
+            img_range = self.img_input.max() - self.img_input.min()
+            ssim_index, ssim_map = ssim(prj_rec, self.img_input, full=True, data_range=img_range)
             self.tx1.set_text("SSIM map of " + self.plot_txt + " for iteration {0}".format(self.epoch))
             vmax = np.max(ssim_map)
             vmin = np.min(ssim_map)
