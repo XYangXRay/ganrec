@@ -15,43 +15,85 @@ Originally designed for the fields of tomography and phase retrieval, GANrec shi
 
 # Installation
 
-Installation
+This guide provides detailed steps for setting up the `ganrec` package in a Conda environment.
 
-1. For the general users:
-   - Create a Conda Environment:
-   Create a new conda environment named ganrec.
+## Steps for General Users
 
-   `conda create --name ganrec python=3.11`
+### 1. Create & Activate a Conda Environment
+Open your terminal or command prompt and create a new conda environment named `ganrec` with Python 3.11:
 
-   - Activate the Conda Environment:
-   Activate the newly created ganrec environment.
+```bash
+conda create --name ganrec python=3.11
+conda activate ganrec
+```
+
+### 2. Install Tensorflow OR Pytorch 
+Choose and install either TensorFlow or PyTorch based on your preference.
+
+For TensorFlow:
+```bash
+pip install tensorflow
+```
+
+For PyTorch (make sure to select the correct version for your system from the PyTorch website):
+```bash
+# Example command for installing PyTorch with CUDA support
+pip install torch torchvision torchaudio
+```
+
+### 3. Install 'ganrec' from PyPI
+Finally, install the ganrec package from PyPI:
+```bash
+pip install ganrec
+```
+
+## Steps for developers:
+If you want to work for some developments based on GANrec, please follow the steps below to install and set up GANrec:
+
+
+### 1. Create & Activate a Conda Environment
+Open your terminal or command prompt and create a new conda environment named `ganrec` with Python 3.11:
+
+```bash
+conda create --name ganrec python=3.11
+conda activate ganrec
+```
    
-   `conda activate ganrec`
+### 2. Install Tensorflow OR Pytorch 
+Choose and install either TensorFlow or PyTorch based on your preference.
 
-   - Install from Pypi:
-   
-   `pip install ganrec`
+For TensorFlow:
+```bash
+pip install tensorflow
+```
 
+For PyTorch (make sure to select the correct version for your system from the PyTorch website):
+```bash
+# Example command for installing PyTorch with CUDA support
+pip install torch torchvision torchaudio
+```
+### 3. Clone the GANrec Repository:
+Clone the GANrec repository from GitHub to your local machine.
+```bash  
+git clone https://github.com/XYangXRay/ganrec.git`
+```
 
-2. If you want to work for some developments based on GANrec, please follow the steps below to install and set up GANrec:
-   - Create a Conda Environment:
-   Create a new conda environment named ganrec.
-   
-   `conda create --name ganrec python=3.11`
+### 4. Install the Required Packages:
 
-   - Activate the Conda Environment:
-   Activate the newly created ganrec environment.
-   
-   `conda activate ganrec`
-   - Clone the GANrec Repository:
-   Clone the GANrec repository from GitHub to your local machine.
-   
-   `git clone https://github.com/XYangXRay/ganrec.git`
-   
-   - Install the Required Packages:
-   Navigate to the main directory of the cloned repository and install the necessary packages.
-   `cd ganrec`
-   `python3 -m pip install -e .`
+Navigate to the main directory of the cloned repository and install the necessary packages.
+```bash
+cd ganrec
+python3 -m pip install -e .
+```
+
+## Additional Notes for Users
+
+### Choosing Between TensorFlow and PyTorch
+If you're not sure which one to choose, consider the specific requirements of your project or any existing familiarity you have with either library.
+TensorFlow is often chosen for its production deployment capabilities and integration with TensorFlow Extended (TFX).
+PyTorch is favored for its ease of use, dynamic computation graph, and strong support from the research community.
+### Installing GPU Support
+ganrec requires heavy duty work with GPU, make sure to install the GPU versions of TensorFlow or PyTorch. Instructions for this can be found on the respective official websites (TensorFlow and PyTorch).
 
 # Examples
 
