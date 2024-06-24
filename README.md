@@ -59,7 +59,7 @@ conda create --name ganrec python=3.11
 conda activate ganrec
 ```
    
-### 2. Install Tensorflow OR Pytorch 
+### 2. Install Tensorflow OR PyTorch 
 Choose and install either TensorFlow or PyTorch based on your preference.
 
 For TensorFlow:
