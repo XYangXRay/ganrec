@@ -9,8 +9,8 @@ import tifffile
 from ganrec.ganrec2 import GANdiffraction
 
 
-fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4/'
-spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_recon_20240415/'
+fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_20240624/'
+spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_recon_20240624/'
 # spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208/'
 fname_mask = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/mask_crop_nor.tiff'
 iter_num = 1200
@@ -92,21 +92,20 @@ def main():
         file_name = fpath + str(796815+i) +'.tiff'
         # file_name = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test_1.tif'
         # file_name = fpath + str(796815+i)
-        # print("Reconstruction for " + str(file_name))
+        print("Reconstruction for " + str(file_name))
         # if i-1 in recon_list or i in recon_list or i+1 in recon_list:
             
-        # data = tifffile.imread(file_name)
+        data = tifffile.imread(file_name)
         # save_tiff(data, spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
-        data = data_all[i]
-        data = draw_mask(data, 36, 220)
+        # data = data_all[i]
+        data = draw_mask(data, 140, 880)
             # save_tiff(data, '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test_tmp.tiff')
             # plt.imshow(data)
             # plt.show()
         px, _ = data.shape
         data = nor_diff(data)
         
-        gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=False, 
-                                         save_wpath= '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/weights/')
+        gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=False)
         start = time.time()
         abs, rec = gan_diff_object.recon
         end = time.time()

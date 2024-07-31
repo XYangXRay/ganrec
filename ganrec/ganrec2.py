@@ -904,7 +904,7 @@ class GANdiffraction:
             # phase_mask = tf.ones([128, 128])
             # phase_mask = tf.pad(phase_mask, [[64, 64], [64, 64]])
             # phase = tf.multiply(phase, phase_mask)
-            phase = tf.pad(phase, [[64, 64], [64, 64]])
+            phase = tf.pad(phase, [[256, 256], [256, 256]])
  
 
             
@@ -914,7 +914,7 @@ class GANdiffraction:
             
             absorption = (1 - tfnor_diff(recon[:, :, :, 1]))* self.abs_ratio
             absorption = tf.reshape(absorption, [self.px//2, self.px//2])
-            absorption = tf.pad(absorption, [[64, 64], [64, 64]])
+            absorption = tf.pad(absorption, [[256, 256], [256, 256]])
             if self.phase_only:
                 absorption = tf.zeros_like(phase)
             
