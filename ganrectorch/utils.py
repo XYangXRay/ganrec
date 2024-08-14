@@ -402,6 +402,54 @@ def to_device(data, device=None):
 #     return torch_reshape(x).to(device)
 
 
+def next_power_of_2(x):
+    """Returns the next power of 2 greater than or equal to x."""
+    return 1 if x == 0 else 2**(x - 1).bit_length()
+
+def pad_to_power_of_2_square(img):
+    """Pads the input grayscale image so that the resulting image is square with dimensions that are a power of 2."""
+    # Get the current dimensions of the image
+    h, w = img.shape
+    
+    # Determine the maximum dimension to make the padded image square
+    max_dim = max(h, w)
+    
+    # Calculate the next power of 2 for the maximum dimension
+    new_dim = next_power_of_2(max_dim)
+    
+    # Calculate padding for each side
+    pad_top = (new_dim - h) // 2
+    pad_bottom = new_dim - h - pad_top
+    pad_left = (new_dim - w) // 2
+    pad_right = new_dim - w - pad_left
+    
+    # Create a new array with the desired dimensions, filled with zeros (black)
+    padded_img = np.zeros((new_dim, new_dim), dtype=img.dtype)
+    
+    # Place the original image in the center of the padded image
+    padded_img[pad_top:pad_top + h, pad_left:pad_left + w] = img
+    
+    return padded_img
+
+
+def unpad_image(padded_img, original_shape):
+    """Unpads the padded grayscale image to its original dimensions."""
+    # Get the dimensions of the padded image
+    h, w = padded_img.shape
+    
+    # Extract the original height and width
+    original_h, original_w = original_shape
+    
+    # Calculate the padding that was added
+    pad_top = (h - original_h) // 2
+    pad_left = (w - original_w) // 2
+    
+    # Remove the padding by slicing the array to the original dimensions
+    unpadded_img = padded_img[pad_top:pad_top + original_h, pad_left:pad_left + original_w]
+    
+    return unpadded_img
+
+
 def grid_generator(shape_x, shape_y, upscale=1, ps=5.5e-06):
     """
     Parameters: shape_y - shape of the image in y-direction

@@ -74,7 +74,7 @@ def avg_results(recon, loss):
 
 class GANtomo:
     def __init__(self, prj_input, angle, **kwargs):
-        phase_args = config["GANtomo"]
+        tomo_args = config["GANtomo"]
         tomo_args.update(**kwargs)
         super(GANtomo, self).__init__()
         tf_configures()

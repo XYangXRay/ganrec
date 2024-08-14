@@ -7,7 +7,7 @@ from torch import nn, optim
 from torch.cuda.amp import GradScaler, autocast
 from ganrectorch.models import Generator, Discriminator
 from ganrectorch.propagators import RadonTransform
-from ganrectorch.utils import RECONmonitor, to_device, tensor_to_np
+from ganrectorch.utils import RECONmonitor, pad_to_power_of_2_square, unpad_image, to_device, tensor_to_np
 
 
 def torch_configures():
@@ -151,6 +151,149 @@ class GANtomo:
             prj_rec = self.nor_tomo(prj_rec)
             # print(f"prj shape: {prj.shape}")
             # print(f"prj_rec shape: {prj_rec.shape}")
+            real_output = self.discriminator(prj)
+            fake_output = self.discriminator(prj_rec)
+            g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
+            d_loss = discriminator_loss(real_output, fake_output)
+
+        # Backward pass with gradient scaling
+        self.scaler.scale(g_loss).backward(retain_graph=True)
+        self.scaler.scale(d_loss).backward()
+
+        # Optimizer step with gradient scaling
+        self.scaler.step(self.generator_optimizer)
+        self.scaler.step(self.discriminator_optimizer)
+        self.scaler.update()
+
+        return {"recon": recon, "prj_rec": prj_rec, "g_loss": g_loss, "d_loss": d_loss}
+
+    def recon(self):
+        self.make_model()
+        self.radon = RadonTransform(torch.empty(1, 1, self.px, self.px), self.angle)
+        self.prj_input, self.angle, self.generator, self.discriminator, self.radon = to_device(
+            [self.prj_input, self.angle, self.generator, self.discriminator, self.radon]
+        )
+        self.prj_input = self.nor_tomo(self.prj_input)
+        if self.init_wpath:
+            self.generator.load_state_dict(torch.load(self.init_wpath + "generator.pth"))
+            print("generator is initialized")
+            self.discriminator.load_state_dict(torch.load(self.init_wpath + "discriminator.pth"))
+        recon = torch.zeros((self.iter_num, 1, self.px, self.px))
+        gen_loss = torch.zeros((self.iter_num))
+
+        ###########################################################################
+        # Reconstruction process monitor
+        if self.recon_monitor:
+            plot_x, plot_loss = [], []
+            recon_monitor = RECONmonitor("tomo", self.prj_input.cpu())
+            pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
+
+        ###########################################################################
+        for epoch in range(self.iter_num):
+
+            ###########################################################################
+            ## Call the rconstruction step
+
+            step_result = self.recon_step(self.prj_input, self.angle)
+            recon = step_result["recon"]
+            gen_loss[epoch] = step_result["g_loss"]
+            ###########################################################################
+            if self.recon_monitor:
+                plot_x.append(epoch)
+                plot_loss = gen_loss[: epoch + 1]
+                pbar.set_postfix(G_loss=gen_loss[epoch].item(), D_loss=step_result["d_loss"].item())
+                pbar.update(1)
+            if (epoch + 1) % 100 == 0:
+                if self.recon_monitor:
+                    prj_rec = step_result["prj_rec"].view(self.nang, self.px)
+                    prj_diff = torch.abs(prj_rec - self.prj_input.view((self.nang, self.px))).cpu()
+                    rec_plt = recon.view(self.px, self.px).cpu()
+                    recon_monitor.update_plot(epoch, prj_diff, rec_plt, plot_x, plot_loss.cpu())
+                # print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1,
+                #                                                            gen_loss[epoch],
+                #                                                            step_result['d_loss'].item()))
+        if self.save_wpath != None:
+            torch.save(self.generator.state_dict(), self.save_wpath + "generator.pth")
+            torch.save(self.discriminator.state_dict(), self.save_wpath + "discriminator.pth")
+        if self.recon_monitor:
+            recon_monitor.close_plot()
+        return tensor_to_np(recon.cpu())
+    
+    
+class GANphase:
+    def __init__(self, i_input, energy, z, pv, **kwargs):
+        super(GANtomo, self).__init__()
+        phase_args = config["GANphase"]
+        phase_args.update(**kwargs)
+        torch_configures()
+        self.scaler = GradScaler()
+        self._input_data(i_input, energy, z, pv)
+        self.iter_num = phase_args["iter_num"]
+        self.conv_num = phase_args["conv_num"]
+        self.conv_size = phase_args["conv_size"]
+        self.dropout = phase_args["dropout"]
+        self.l1_ratio = phase_args["l1_ratio"]
+        self.g_learning_rate = phase_args["g_learning_rate"]
+        self.d_learning_rate = phase_args["d_learning_rate"]
+        self.save_wpath = phase_args["save_wpath"]
+        self.init_wpath = phase_args["init_wpath"]
+        self.init_model = phase_args["init_model"]
+        self.recon_monitor = phase_args["recon_monitor"]
+        self.generator = None
+        self.discriminator = None
+        self.generator_optimizer = None
+        self.discriminator_optimizer = None
+
+    def _input_data(self, i_input, energy, z, pv):
+        """
+        Prepare and move input data to the GPU.
+        """
+        # Convert and reshape prj_input
+        self.nang, self.px = i_input.shape
+        self.i_input = torch.from_numpy(i_input)
+        self.i_input = self.i_input.view(-1, 1, self.nang, self.px)
+
+        # Convert angle
+        self.enery = torch.from_numpy(energy)
+        self.z = torch.from_numpy(z)
+        self.pv = torch.from_numpy(pv)
+        # self.prj_input, self.angle = to_device([self.prj_input, self.angle])
+
+    def make_model(self):
+        self.generator = Generator(
+            self.prj_input.shape[2], self.prj_input.shape[3], self.conv_num, self.conv_size, self.dropout, 2
+        )
+        self.discriminator = Discriminator()
+        self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
+        self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
+
+    # @torch.compile()
+    def nor_tomo(self, data):
+
+        # Calculate the mean and standard deviation of the data
+        mean = torch.mean(data)
+        std = torch.std(data)
+
+        # Standardize the data (z-score normalization)
+        standardized_data = (data - mean) / std
+
+        # Find the minimum value in the standardized data
+        standardized_min = torch.min(standardized_data)
+
+        # Shift the data to start from 0
+        shifted_data = standardized_data - standardized_min
+
+        return shifted_data
+
+    @torch.compile()
+    def recon_step(self, prj, ang):
+        self.generator_optimizer.zero_grad()
+        self.discriminator_optimizer.zero_grad()
+        with autocast():
+            recon = self.generator(prj)
+            recon = self.nor_tomo(recon)
+            prj_rec = self.radon(recon, ang)
+            prj_rec = self.nor_tomo(prj_rec)
             real_output = self.discriminator(prj)
             fake_output = self.discriminator(prj_rec)
             g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
