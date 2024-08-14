@@ -404,7 +404,7 @@ def to_device(data, device=None):
 
 def next_power_of_2(x):
     """Returns the next power of 2 greater than or equal to x."""
-    return 1 if x == 0 else 2**(x - 1).bit_length()
+    return 1 if x == 0 else 2**(x + 1).bit_length()
 
 def pad_to_power_of_2_square(img):
     """Pads the input grayscale image so that the resulting image is square with dimensions that are a power of 2."""
@@ -419,9 +419,9 @@ def pad_to_power_of_2_square(img):
     
     # Calculate padding for each side
     pad_top = (new_dim - h) // 2
-    pad_bottom = new_dim - h - pad_top
+    # pad_bottom = new_dim - h - pad_top
     pad_left = (new_dim - w) // 2
-    pad_right = new_dim - w - pad_left
+    # pad_right = new_dim - w - pad_left
     
     # Create a new array with the desired dimensions, filled with zeros (black)
     padded_img = np.zeros((new_dim, new_dim), dtype=img.dtype)

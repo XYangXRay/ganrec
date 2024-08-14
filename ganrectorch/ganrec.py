@@ -6,8 +6,13 @@ import torch.nn.functional as F
 from torch import nn, optim
 from torch.cuda.amp import GradScaler, autocast
 from ganrectorch.models import Generator, Discriminator
-from ganrectorch.propagators import RadonTransform
-from ganrectorch.utils import RECONmonitor, pad_to_power_of_2_square, unpad_image, to_device, tensor_to_np
+from ganrectorch.propagators import RadonTransform, PhaseFresnel
+from ganrectorch.utils import (RECONmonitor, 
+                               to_device, 
+                               tensor_to_np, 
+                               pad_to_power_of_2_square, 
+                               unpad_image, 
+                               next_power_of_2)
 
 
 def torch_configures():
@@ -249,9 +254,10 @@ class GANphase:
         Prepare and move input data to the GPU.
         """
         # Convert and reshape prj_input
-        self.nang, self.px = i_input.shape
-        self.i_input = torch.from_numpy(i_input)
-        self.i_input = self.i_input.view(-1, 1, self.nang, self.px)
+        self.img_h, self.img_w = i_input.shape
+        self.i_input = torch.from_numpy(pad_to_power_of_2_square(i_input))
+        self.padded_dim = next_power_of_2(max(self.img_h, self.img_w))
+        self.i_input = self.i_input.view(-1, 1, self.padded_dim, self.padded_dim)
 
         # Convert angle
         self.enery = torch.from_numpy(energy)
@@ -261,29 +267,23 @@ class GANphase:
 
     def make_model(self):
         self.generator = Generator(
-            self.prj_input.shape[2], self.prj_input.shape[3], self.conv_num, self.conv_size, self.dropout, 2
+            self.padded_dim, self.padded_dim, self.conv_num, self.conv_size, self.dropout, 2
         )
         self.discriminator = Discriminator()
         self.generator_optimizer = optim.Adam(self.generator.parameters(), lr=self.g_learning_rate)
         self.discriminator_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.d_learning_rate)
 
     # @torch.compile()
-    def nor_tomo(self, data):
+    def nor_phase(self, data):
 
         # Calculate the mean and standard deviation of the data
         mean = torch.mean(data)
         std = torch.std(data)
 
         # Standardize the data (z-score normalization)
-        standardized_data = (data - mean) / std
+        data = (data - mean) / std
 
-        # Find the minimum value in the standardized data
-        standardized_min = torch.min(standardized_data)
-
-        # Shift the data to start from 0
-        shifted_data = standardized_data - standardized_min
-
-        return shifted_data
+        return data/torch.max(data)
 
     @torch.compile()
     def recon_step(self, prj, ang):
@@ -312,8 +312,8 @@ class GANphase:
 
     def recon(self):
         self.make_model()
-        self.radon = RadonTransform(torch.empty(1, 1, self.px, self.px), self.angle)
-        self.prj_input, self.angle, self.generator, self.discriminator, self.radon = to_device(
+        self.fresnel = PhaseFresnel(torch.empty(1, 1, self.px, self.px), self.angle)
+        self.prj_input, self.angle, self.generator, self.discriminator, self.fresnel = to_device(
             [self.prj_input, self.angle, self.generator, self.discriminator, self.radon]
         )
         self.prj_input = self.nor_tomo(self.prj_input)
