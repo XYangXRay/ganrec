@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.init as init
 from ganrectorch.utils import to_device
@@ -49,7 +50,7 @@ class Dense(nn.Module):
             self.build_layer(input_size, x.device)
         return self.dense_norm_layer(x)
 
-
+# @torch.compile()
 class Generator(nn.Module):
     def __init__(self, img_h, img_w, conv_num, conv_size, dropout, output_num):
         super(Generator, self).__init__()
@@ -133,7 +134,7 @@ class Generator(nn.Module):
             nn.LeakyReLU(),
         )
 
-
+# @torch.compile()
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()

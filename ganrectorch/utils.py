@@ -108,6 +108,8 @@ class RECONmonitor:
             self.dummy_img2 = np.zeros_like(self.img_input)
         elif self.recon_target == "phase":
             self.plot_txt = "Intensity"
+            self.dummy_img1 = np.zeros((self.img_input.shape[1], self.img_input.shape[1]))
+            self.dummy_img2 = np.zeros_like(self.img_input)
 
         self._initialize_plot()
 
@@ -216,21 +218,21 @@ def makedirs(path):
         os.makedirs(path)
 
 
-def ffactor(px, py, energy, z, pv, return_both=False):
-    lambda_p = 1.23984122e-09 / energy
-    frequ_prefactor = 2 * np.pi * lambda_p * z / pv**2
-    freq_1 = fftfreq(px)
-    freq_2 = fftfreq(py)
-    xi, eta = np.meshgrid(freq_1, freq_2)
-    xi = xi.astype("float32")
-    eta = eta.astype("float32")
-    if return_both == False:
-        return np.exp(-1j * frequ_prefactor * (xi**2 + eta**2) / 2)
-    else:
+# def ffactor(px, py, energy, z, pv, return_both=False):
+#     lambda_p = 1.23984122e-09 / energy
+#     frequ_prefactor = 2 * np.pi * lambda_p * z / pv**2
+#     freq_1 = fftfreq(px)
+#     freq_2 = fftfreq(py)
+#     xi, eta = np.meshgrid(freq_1, freq_2)
+#     xi = xi.astype("float32")
+#     eta = eta.astype("float32")
+#     if return_both == False:
+#         return np.exp(-1j * frequ_prefactor * (xi**2 + eta**2) / 2)
+#     else:
 
-        base = np.exp((xi**2 + eta**2) / 2)
-        h = base ** (-1j * frequ_prefactor)
-        return h, base
+#         base = np.exp((xi**2 + eta**2) / 2)
+#         h = base ** (-1j * frequ_prefactor)
+#         return h, base
 
 
 def ffactors(px, py, energy, zs, pv):
@@ -404,7 +406,7 @@ def to_device(data, device=None):
 
 def next_power_of_2(x):
     """Returns the next power of 2 greater than or equal to x."""
-    return 1 if x == 0 else 2**(x + 1).bit_length()
+    return 1 if x == 0 else 2**(x - 1).bit_length()
 
 def pad_to_power_of_2_square(img):
     """Pads the input grayscale image so that the resulting image is square with dimensions that are a power of 2."""

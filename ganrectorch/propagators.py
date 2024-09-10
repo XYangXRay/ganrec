@@ -92,26 +92,34 @@ class TensorRadon:
         return tensor_sino
 
 
-class PhaseFresnel:
+class PhaseFresnel(nn.Module):
 
-    def __init__(self, phase, absorption, ff, px):
-        self.phase = phase
-        self.absorption = absorption
+    def __init__(self, recon, ff, px, abs_ratio):
+        super(PhaseFresnel, self).__init__()
+
+        self.phase = recon[:, 0, :, :]
+        self.absorption = recon[:, 1, :, :]
         self.ff = ff
         self.px = px
+        self.abs_ratio = abs_ratio
 
-    def compute(self):
-        paddings = torch.tensor([[self.px // 2, self.px // 2], [self.px // 2, self.px // 2]])
-        pvalue = torch.mean(self.phase[:100, :])
-        self.phase = torch.nn.functional.pad(self.phase, paddings, "reflect")
-        self.absorption = torch.nn.functional.pad(self.absorption, paddings, "reflect")
-        abfs = torch.complex(-self.absorption, self.phase)
+    def forward(self, recon):
+        phase = recon[:, 0, :, :]
+        absorption = (1 - recon[:, 1, :, :]) * self.abs_ratio
+        paddings = (self.px // 2, self.px // 2, self.px // 2, self.px // 2)  # Correct tuple format
+        # pvalue_phase = torch.mean(phase[:,:20,:20])
+        # print(pvalue_phase)
+        # phase = torch.nn.functional.pad(phase, paddings, "replicate", value= pvalue_phase.item())
+        phase = torch.nn.functional.pad(phase, paddings, "replicate")
+        # pvalue_absorption = torch.mean(absorption[:,:20,:20])
+        # absorption = torch.nn.functional.pad(absorption, paddings, "replicate", value= pvalue_absorption.item())
+        absorption = torch.nn.functional.pad(absorption, paddings, "replicate")
+        abfs = torch.complex(absorption, phase)
         abfs = torch.exp(abfs)
         ifp = torch.abs(torch.fft.ifft2(self.ff * torch.fft.fft2(abfs))) ** 2
-        ifp = ifp.view(ifp.shape[0], ifp.shape[1], 1)
-        ifp = transforms.CenterCrop(ifp.shape[0] // 2)(ifp)
-        ifp = transforms.Normalize(0, 1)(ifp)
-        ifp = ifp.view(1, ifp.shape[0], ifp.shape[1], 1)
+        ifp = ifp.unsqueeze(0)
+        ifp = transforms.CenterCrop(self.px)(ifp)
+        ifp = transforms.Normalize(mean=[0.0], std=[1.0])(ifp)
         return ifp
 
 
