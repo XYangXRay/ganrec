@@ -194,7 +194,7 @@ class GANtomo:
         return np.reshape(step_result['recon'].numpy().astype(np.float32), (self.img_w, self.img_w))
 
 
-class GANXBIC:
+class GANxbic:
     def __init__(self, prj_input, angle, absorption, imap, **kwargs):
         tomo_args = config["GANtomo"]
         tomo_args.update(**kwargs)
