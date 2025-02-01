@@ -102,7 +102,7 @@ class PhaseFresnel(nn.Module):
         self.ff = ff
         self.px = px
         self.abs_ratio = abs_ratio
-
+    
     def forward(self, recon):
         phase = recon[:, 0, :, :]
         absorption = (1 - recon[:, 1, :, :]) * self.abs_ratio

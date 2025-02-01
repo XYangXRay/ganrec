@@ -3,7 +3,7 @@ import numpy as np
 import json
 from tqdm import tqdm
 import tensorflow as tf
-from ganrectf.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
+from ganrectf.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFresnelG, PhaseFraunhofer
 from ganrectf.models import make_generator, make_discriminator
 from ganrectf.utils import RECONmonitor, ffactor
 

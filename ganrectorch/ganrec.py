@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 from torch import nn, optim
 from torch.amp import GradScaler, autocast
 from ganrectorch.models import Generator, Discriminator
-from ganrectorch.propagators import RadonTransform, PhaseFresnel
+from ganrectorch.propagators import RadonTransform, PhaseFresnel, PhaseFresnelG
 from ganrectorch.utils import (RECONmonitor, 
                                to_device, 
                                tensor_to_np, 
@@ -591,7 +591,7 @@ class GANphase(nn.Module):
 
     def recon(self):
         self.make_model()
-        self.fresnel = PhaseFresnel(
+        self.fresnel = PhaseFresnelG(
             torch.empty(1, 2, self.padded_dim, self.padded_dim, device='cuda'),
             self.ff, self.padded_dim, self.abs_ratio).to('cuda')
         # self.i_input = transforms.Normalize(mean=[0.0], std=[1.0])(self.i_input)

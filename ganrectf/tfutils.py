@@ -331,3 +331,56 @@ def angles_to_projective_transforms(
             ],
             axis=1,
         )
+
+def gaussian_kernel(size: int, sigma: float):
+    """
+    Creates a 2D Gaussian kernel for convolution in TensorFlow.
+
+    Parameters:
+    size (int): Size of the kernel (e.g., 3, 5, 7).
+    sigma (float): Standard deviation of the Gaussian.
+
+    Returns:
+    tf.Tensor: A 2D Gaussian kernel as a TensorFlow tensor.
+    """
+    # Create a 1D Gaussian distribution
+    x = tf.range(-size // 2 + 1, size // 2 + 1, dtype=tf.float32)
+    gauss_1d = tf.exp(-0.5 * (x / sigma) ** 2)
+    gauss_1d /= tf.reduce_sum(gauss_1d)  # Normalize
+
+    # Create a 2D Gaussian kernel by outer product
+    gauss_2d = tf.tensordot(gauss_1d, gauss_1d, axes=0)
+    gauss_2d /= tf.reduce_sum(gauss_2d)  # Normalize
+
+    return gauss_2d
+
+def apply_gaussian_blur_4d(tensor_4d, kernel_size: int, sigma: float):
+    """
+    Applies Gaussian blur to a 4D tensor using a manually created Gaussian kernel.
+
+    Parameters:
+    tensor_4d (tf.Tensor): 4D tensor with shape [batch, height, width, channels].
+    kernel_size (int): Size of the Gaussian kernel (e.g., 3, 5, 7).
+    sigma (float): Standard deviation of the Gaussian.
+
+    Returns:
+    tf.Tensor: Blurred 4D tensor with the same shape as input.
+    """
+    # Create Gaussian kernel
+    gauss_kernel = gaussian_kernel(kernel_size, sigma)
+    gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]  # Add dimensions for channels
+
+    # Repeat the kernel for each channel
+    gauss_kernel = tf.repeat(gauss_kernel, tensor_4d.shape[-1], axis=-1)  # Shape [k, k, 1, channels]
+
+    # Apply convolution to each channel independently
+    blurred_tensor = tf.nn.depthwise_conv2d(
+        tensor_4d,
+        filter=gauss_kernel,
+        strides=[1, 1, 1, 1],
+        padding='SAME'
+    )
+
+    return blurred_tensor
+  
+

@@ -1,5 +1,5 @@
 import tensorflow as tf
-from ganrectf.tfutils import tfrotate
+from ganrectf.tfutils import tfrotate, apply_gaussian_blur_4d
 
 
 class TomoRadon:
@@ -95,6 +95,61 @@ class PhaseFresnel:
         abfs = tf.complex(-self.absorption, self.phase)
         abfs = tf.exp(abfs)
         ifp = tf.abs(tf.signal.ifft2d(self.ff * tf.signal.fft2d(abfs))) ** 2
+        ifp = tf.reshape(ifp, [ifp.shape[0], ifp.shape[1], 1])
+        ifp = tf.image.central_crop(ifp, 0.5)
+        ifp = tf.image.per_image_standardization(ifp)
+        ifp = tf.reshape(ifp, [1, ifp.shape[0], ifp.shape[1], 1])
+        ifp = apply_gaussian_blur_4d(ifp, kernel_size=3, sigma=1.5)
+        return ifp
+    
+class PhaseFresnelG:
+
+    def __init__(self, phase, absorption, ff, px):
+        self.phase = phase
+        self.absorption = absorption
+        self.ff = ff
+        self.px = px
+    
+    def gaussian_filter_in_fourier(self, sigma, shape):
+
+        rows = tf.cast(shape[0], tf.float32)
+        cols = tf.cast(shape[1], tf.float32)
+    
+    # Create a meshgrid in frequency space
+        x = tf.linspace(-cols / 2, cols / 2, int(cols))
+        y = tf.linspace(-rows / 2, rows / 2, int(rows))
+        X, Y = tf.meshgrid(x, y)
+    
+    # Calculate Gaussian in frequency domain
+        gaussian_filter = tf.exp(-0.5 * (X**2 + Y**2) / (sigma ** 2))
+    
+    # Shift to match the FFT frequency ordering
+        gaussian_filter = tf.signal.fftshift(gaussian_filter)
+        gaussian_filter = tf.cast(gaussian_filter, dtype=tf.complex64)
+    
+        return gaussian_filter
+
+    def compute(self):
+        paddings = tf.constant([[self.px // 2, self.px // 2], [self.px // 2, self.px // 2]])
+        pvalue = tf.reduce_mean(self.phase[:100, :])
+        self.phase = tf.pad(self.phase, paddings, "SYMMETRIC")
+        self.absorption = tf.pad(self.absorption, paddings, "SYMMETRIC")
+        abfs = tf.complex(-self.absorption, self.phase)
+        abfs = tf.exp(abfs)
+        fft_image = self.ff * tf.signal.fft2d(abfs)
+    
+    # Get the shape of the image for the Gaussian filter
+        shape = tf.shape(abfs)[-2:]  # Height and width
+    
+    # Create Gaussian filter in Fourier domain
+        gaussian_filter = self.gaussian_filter_in_fourier(30, shape)
+    
+    # Apply the Gaussian filter in Fourier domain
+        blurred_fft_image = fft_image * gaussian_filter
+    
+    # Inverse FFT to obtain the blurred image in the spatial domain
+        ifp = tf.abs(tf.signal.ifft2d(blurred_fft_image)) ** 2
+        # ifp = tf.abs(tf.signal.ifft2d(self.ff * tf.signal.fft2d(abfs))) ** 2
         ifp = tf.reshape(ifp, [ifp.shape[0], ifp.shape[1], 1])
         ifp = tf.image.central_crop(ifp, 0.5)
         ifp = tf.image.per_image_standardization(ifp)
