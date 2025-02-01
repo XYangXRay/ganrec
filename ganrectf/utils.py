@@ -4,6 +4,7 @@ from numpy.fft import fftfreq
 import tifffile
 import matplotlib.pyplot as plt
 from skimage.metrics import structural_similarity as ssim
+from skimage.transform import rotate
 from IPython.display import display, clear_output
 
 
@@ -48,6 +49,17 @@ def center(prj, cen):
         "constant",
     )
     return prj
+
+def imap(absorption, angles):
+    imap_rotate = np.zeros((len(angles), absorption.shape[0], absorption.shape[1]))
+    for i in range(len(angles)):
+        abs_tmp = rotate(absorption, angles[i], resize=False)
+        imap = np.zeros_like(abs_tmp)
+        for j in range(len(abs_tmp)):
+            imap_tmp = np.sum(abs_tmp[:j, :], axis=0)
+            imap[j] = np.exp(-imap_tmp)
+        imap_rotate[i] = imap
+    return imap_rotate
 
 
 def cal_intensity(prj, recon):
@@ -218,6 +230,11 @@ class RECONmonitor:
 
     def close_plot(self):
         plt.close()        
+
+
+
+
+
 
 def display_strain_tensor(tensor, profile_index=None):
     """

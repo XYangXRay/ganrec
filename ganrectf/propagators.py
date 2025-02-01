@@ -19,6 +19,27 @@ class TomoRadon:
         return sino
 
 
+class TomoXBIC:
+
+    def __init__(self, rec, ang, absorption, imap):
+        self.rec = rec
+        self.ang = ang
+        self.absorption = absorption
+        self.imap = imap  
+    
+    def compute(self):
+        img = tf.multiply(self.rec, self.absorption)
+        nang = self.ang.shape[0]
+        img = tf.transpose(self.rec, [3, 1, 2, 0])
+        img = tf.tile(img, [nang, 1, 1, 1])
+        img = tfrotate(img, -self.ang, interpolation="bilinear")
+        img = tf.multiply(img, self.imap)
+        sino = tf.reduce_mean(img, 1, name=None)
+        sino = tf.transpose(sino, [2, 0, 1])
+        sino = tf.reshape(sino, [sino.shape[0], sino.shape[1], sino.shape[2], 1])
+        return sino
+
+
 class TensorRadon:
 
     def __init__(self, rec, ang, psi):

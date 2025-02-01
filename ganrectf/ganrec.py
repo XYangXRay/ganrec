@@ -3,7 +3,7 @@ import numpy as np
 import json
 from tqdm import tqdm
 import tensorflow as tf
-from ganrectf.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
+from ganrectf.propagators import TomoRadon, TomoXBIC, TensorRadon, PhaseFresnel, PhaseFraunhofer
 from ganrectf.models import make_generator, make_discriminator
 from ganrectf.utils import RECONmonitor, ffactor
 
@@ -192,6 +192,113 @@ class GANtomo:
         if self.recon_monitor:
             recon_monitor.close_plot()
         return np.reshape(step_result['recon'].numpy().astype(np.float32), (self.img_w, self.img_w))
+
+
+class GANXBIC:
+    def __init__(self, prj_input, angle, absorption, imap, **kwargs):
+        tomo_args = config["GANtomo"]
+        tomo_args.update(**kwargs)
+        super(GANtomo, self).__init__()
+        tf_configures()
+        self.prj_input = prj_input
+        self.img_h, self.img_w = self.prj_input.shape
+        self.angle = angle
+        self.absorption = absorption
+        self.imap = imap
+        self.iter_num = tomo_args["iter_num"]
+        self.conv_num = tomo_args["conv_num"]
+        self.conv_size = tomo_args["conv_size"]
+        self.dropout = tomo_args["dropout"]
+        self.l1_ratio = tomo_args["l1_ratio"]
+        self.g_learning_rate = tomo_args["g_learning_rate"]
+        self.d_learning_rate = tomo_args["d_learning_rate"]
+        self.save_wpath = tomo_args["save_wpath"]
+        self.init_wpath = tomo_args["init_wpath"]
+        self.init_model = tomo_args["init_model"]
+        self.recon_monitor = tomo_args["recon_monitor"]
+        self.filter = None
+        self.generator = None
+        self.discriminator = None
+        self.filter_optimizer = None
+        self.generator_optimizer = None
+        self.discriminator_optimizer = None
+
+    def make_model(self):
+        self.generator = make_generator(
+            self.prj_input.shape[0], self.prj_input.shape[1], self.conv_num, self.conv_size, self.dropout, 1
+        )
+
+        self.discriminator = make_discriminator(self.prj_input.shape[0], self.prj_input.shape[1])
+        self.filter_optimizer = tf.keras.optimizers.Adam(5e-5)
+        self.generator_optimizer = tf.keras.optimizers.Adam(self.g_learning_rate)
+        self.discriminator_optimizer = tf.keras.optimizers.Adam(self.d_learning_rate)
+        self.generator.compile()
+        self.discriminator.compile()
+
+    @tf.function
+    def tfnor_tomo(self, img):
+        img = tf.image.per_image_standardization(img)
+        img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
+        return img
+
+    @tf.function
+    def recon_step(self, prj, ang, absorption, imap):
+        with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+            recon = self.generator(prj)
+            recon = self.tfnor_tomo(recon)
+            tomo_radon_obj = TomoXBIC(recon, ang, absorption, imap)
+            prj_rec = tomo_radon_obj.compute()
+            prj_rec = self.tfnor_tomo(prj_rec)
+            real_output = self.discriminator(prj, training=True)
+            fake_output = self.discriminator(prj_rec, training=True)
+            g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
+            d_loss = discriminator_loss(real_output, fake_output)
+        gradients_of_generator = gen_tape.gradient(g_loss, self.generator.trainable_variables)
+        gradients_of_discriminator = disc_tape.gradient(d_loss, self.discriminator.trainable_variables)
+        self.generator_optimizer.apply_gradients(zip(gradients_of_generator, self.generator.trainable_variables))
+        self.discriminator_optimizer.apply_gradients(
+            zip(gradients_of_discriminator, self.discriminator.trainable_variables)
+        )
+        return {"recon": recon, "prj_rec": prj_rec, "g_loss": g_loss, "d_loss": d_loss}
+
+    @property
+    def recon(self):
+        nang, px = self.prj_input.shape
+        prj = np.reshape(self.prj_input, (1, nang, px, 1))
+        prj = tf.cast(prj, dtype=tf.float32)
+        prj = self.tfnor_tomo(prj)
+        ang = tf.cast(self.angle, dtype=tf.float32)
+        absorption = tf.cast(self.absorption, dtype=tf.float32)
+        imap = tf.cast(self.imap, dytpe=tf.float32)
+        self.make_model()
+        if self.init_wpath:
+            self.generator.load_weights(self.init_wpath + "generator.h5")
+            print("generator is initilized")
+            self.discriminator.load_weights(self.init_wpath + "discriminator.h5")
+
+        ###########################################################################
+        # Reconstruction process monitor
+        pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
+        if self.recon_monitor:
+            recon_monitor = RECONmonitor("tomo", self.prj_input)
+     
+            
+        ###########################################################################
+        for epoch in range(self.iter_num):
+
+            ###########################################################################
+            ## Call the rconstruction step
+
+            step_result = self.recon_step(prj, ang, absorption, imap)
+            pbar.set_postfix(G_loss=step_result["g_loss"].numpy(), D_loss=step_result["d_loss"].numpy())
+            pbar.update(1) 
+        if self.save_wpath != None:
+            self.generator.save(self.save_wpath + "generator.h5")
+            self.discriminator.save(self.save_wpath + "discriminator.h5")
+        if self.recon_monitor:
+            recon_monitor.close_plot()
+        return np.reshape(step_result['recon'].numpy().astype(np.float32), (self.img_w, self.img_w))
+
 
 
 class GANtensor:
