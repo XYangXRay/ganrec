@@ -6,7 +6,7 @@ import tensorflow_addons as tfa
 
 from ganrec.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
 from ganrec.models import make_generator, make_generator_diff, make_generator_fno, make_discriminator, make_filter, diffusion_model
-from ganrec.utils import RECONmonitor, ffactor
+from ganrec.utils import RECONmonitor, ffactor, downsample_avgpool, downsample_resize
 
 
 # Load the configuration from the JSON file
@@ -895,16 +895,21 @@ class GANdiffraction:
     def rec_step(self, i_input):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             recon = self.generator(i_input)
+            # recon = downsample_resize(recon, scale=0.5)
             # recon = tfa.image.median_filter2d(recon)
-            phase = tfnor_diff(recon[:, :, :, 0])
-            phase = tf.reshape(phase, [self.px//2, self.px//2])
+            
+            phase = tf.squeeze(tfnor_diff(recon[:, :, :, 0]), axis=0)
+          
+            # phase = tf.reshape(phase, [self.px//8, self.px//8])
             # add median filter to the result
             # phase_mask = tf.zeros_like(phase)
             
             # phase_mask = tf.ones([128, 128])
             # phase_mask = tf.pad(phase_mask, [[64, 64], [64, 64]])
             # phase = tf.multiply(phase, phase_mask)
-            phase = tf.pad(phase, [[256, 256], [256, 256]])
+            phase1 = downsample_avgpool(phase, factor=2)
+            # phase1 = tf.squeeze(phase1, axis=-1)
+            phase1 = tf.pad(phase1, [[480, 480], [480, 480]])
  
 
             
@@ -912,16 +917,20 @@ class GANdiffraction:
             # phase = tfa.image.gaussian_filter2d(phase)
             
             
-            absorption = (1 - tfnor_diff(recon[:, :, :, 1]))* self.abs_ratio
-            absorption = tf.reshape(absorption, [self.px//2, self.px//2])
-            absorption = tf.pad(absorption, [[256, 256], [256, 256]])
-            if self.phase_only:
-                absorption = tf.zeros_like(phase)
+            absorption = tf.squeeze((1 - tfnor_diff(recon[:, :, :, 1]))* self.abs_ratio, axis=0)
+            # absorption = tf.reshape(absorption, [self.px//8, self.px//8])
             
-            phase_obj = PhaseFraunhofer(phase, absorption)
+            absorption1 = downsample_avgpool(absorption, factor=2)
+            # absorption1 = tf.squeeze(absorption1, axis=-1)
+            absorption1 = tf.pad(absorption1, [[480, 480], [480, 480]])
+            if self.phase_only:
+                absorption1 = tf.zeros_like(phase1)
+            
+            phase_obj = PhaseFraunhofer(phase1, absorption1)
             i_rec = phase_obj.compute()
             # i_rec = phase_fraunhofer(phase, absorption)
             mask = tf.reshape(self.mask, [1, self.mask.shape[0], self.mask.shape[1], 1])
+            # i_input = tf.multiply(i_input, mask)
             # i_rec = tf.multiply(i_rec, mask)
             i_rec = tfnor_diff(i_rec)
             real_output = self.discriminator(i_input, training=True)
@@ -951,8 +960,8 @@ class GANdiffraction:
     
         i_input = tf.cast(i_input, dtype=tf.float32)
         self.make_model()
-        phase = np.zeros((self.iter_num, self.px, self.px))
-        absorption = np.zeros((self.iter_num, self.px, self.px))
+        phase = np.zeros((self.iter_num, self.px//8, self.px//8))
+        absorption = np.zeros((self.iter_num, self.px//8, self.px//8))
         gen_loss = np.zeros(self.iter_num)
 
         ###########################################################################
@@ -984,7 +993,7 @@ class GANdiffraction:
                 if self.recon_monitor:
                     i_rec = np.reshape(i_rec, (self.px, self.px))
                     i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
-                    phase_plt = np.reshape(phase[epoch], (self.px, self.px))
+                    phase_plt = np.reshape(phase[epoch], (self.px//8, self.px//8))
                     recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
                 # print(phase.max(), phase.min())
                 print('Iteration {}: G_loss is {} and D_loss is {}'.format(epoch + 1, gen_loss[epoch], d_loss.numpy()))

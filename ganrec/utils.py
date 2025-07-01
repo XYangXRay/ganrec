@@ -3,6 +3,7 @@ import numpy as np
 from numpy.fft import fftfreq
 import tifffile
 import matplotlib.pyplot as plt
+import tensorflow as tf
 
 
 def nor_tomo(img):
@@ -136,3 +137,133 @@ def save_tiff(image, filename):
     image = np.array(image, dtype = np.float32)
     # Save the image
     tifffile.imwrite(filename, image)
+    
+
+
+def downsample_resize(
+    image: tf.Tensor,
+    scale: float = 0.5,
+    method: str = 'bilinear',
+    antialias: bool = True
+) -> tf.Tensor:
+    """
+    Downsample a 2D image (or batch of images) by a given scale factor
+    using tf.image.resize.
+
+    Parameters
+    ----------
+    image : tf.Tensor
+        `[H, W]`, `[H, W, C]`, or `[B, H, W, C]` tensor.
+    scale : float
+        Scaling factor < 1.0 to shrink the image.
+    method : str
+        One of 'nearest', 'bilinear', 'bicubic', 'lanczos3', 'lanczos5', 'gaussian', 'mitchellcubic'.
+    antialias : bool
+        Whether to apply antialiasing (recommended when downsampling).
+
+    Returns
+    -------
+    tf.Tensor
+        The downsampled image, same rank as input.
+    """
+    # ensure float32
+    img = tf.convert_to_tensor(image, dtype=tf.float32)
+    orig_shape = tf.shape(img)
+
+    # handle possible shapes
+    rank = img.shape.rank
+    if rank == 2:
+        img = tf.expand_dims(img, axis=-1)         # [H, W] → [H, W, 1]
+        orig_rank = 2
+    elif rank == 3:
+        orig_rank = 3
+    elif rank == 4:
+        orig_rank = 4
+    else:
+        raise ValueError(f"Unsupported tensor rank: {rank}")
+
+    # Batch‐ify
+    if img.shape.rank == 3:
+        img = tf.expand_dims(img, axis=0)           # [H, W, C] → [1, H, W, C]
+        added_batch = True
+    else:
+        added_batch = False
+
+    # Compute new size
+    h = tf.cast(orig_shape[-3], tf.float32)
+    w = tf.cast(orig_shape[-2], tf.float32)
+    new_h = tf.cast(tf.math.round(h * scale), tf.int32)
+    new_w = tf.cast(tf.math.round(w * scale), tf.int32)
+    new_size = [new_h, new_w]
+
+    # Resize
+    resized = tf.image.resize(
+        img,
+        size=new_size,
+        method=method,
+        antialias=antialias
+    )
+
+    # remove added dims
+    if added_batch:
+        resized = tf.squeeze(resized, axis=0)       # [1, H', W', C] → [H', W', C]
+    if orig_rank == 2:
+        resized = tf.squeeze(resized, axis=-1)      # [H', W', 1] → [H', W']
+
+    return resized
+
+
+def downsample_avgpool(
+    image: tf.Tensor,
+    factor: int
+) -> tf.Tensor:
+    """
+    Downsample a 2D image (or batch) by an integer factor using average pooling.
+
+    Parameters
+    ----------
+    image : tf.Tensor
+        `[H, W]`, `[H, W, C]`, or `[B, H, W, C]` tensor.
+    factor : int
+        Downsampling factor (must evenly divide H and W).
+
+    Returns
+    -------
+    tf.Tensor
+        The downsampled image, same rank as input.
+    """
+    img = tf.convert_to_tensor(image, dtype=tf.float32)
+    rank = img.shape.rank
+
+    # Add batch and channel dims if missing
+    if rank == 2:
+        img = tf.expand_dims(tf.expand_dims(img, 0), -1)   # [H,W]→[1,H,W,1]
+        added_bc = True
+    elif rank == 3:
+        # Could be [H,W,C] or [B,H,W]
+        if img.shape[-1] > 1 and img.shape.rank == 3:
+            img = tf.expand_dims(img, axis=0)             # [H,W,C]→[1,H,W,C]
+            added_bc = True
+        else:
+            # ambiguous; assume [B,H,W]
+            img = tf.expand_dims(img, axis=-1)            # [B,H,W]→[B,H,W,1]
+            added_bc = False
+    elif rank == 4:
+        added_bc = False
+    else:
+        raise ValueError(f"Unsupported tensor rank: {rank}")
+
+    # apply average pooling
+    # ksize = (factor, factor), strides = (factor, factor)
+    pooled = tf.nn.avg_pool2d(
+        img,
+        ksize=factor,
+        strides=factor,
+        padding='SAME'
+    )
+
+    # remove added dims
+    if added_bc:
+        pooled = tf.squeeze(pooled, axis=0)              # remove batch
+        pooled = tf.squeeze(pooled, axis=-1)             # remove channel
+    return pooled

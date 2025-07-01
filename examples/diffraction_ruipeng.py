@@ -10,10 +10,10 @@ from ganrec.ganrec2 import GANdiffraction
 
 
 fpath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_20240624/'
-spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_recon_20240624/'
+spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop64_recon_20250623/'
 # spath = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208/'
 fname_mask = '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/mask_crop_nor.tiff'
-iter_num = 1200
+iter_num = 800
 
 # mask = tifffile.imread(fname_mask)
 
@@ -83,7 +83,7 @@ def make_mask(image_size, inner_diameter, outer_diameter):
 
     return np.float32(mask)
 
-mask = make_mask(256, 36, 220) 
+mask = make_mask(1024, 100, 980) 
 print(mask.dtype)
 data_all = tifffile.imread('/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/crop_bin4_20240208.tif')
 
@@ -98,20 +98,20 @@ def main():
         data = tifffile.imread(file_name)
         # save_tiff(data, spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
         # data = data_all[i]
-        data = draw_mask(data, 140, 880)
+        data = draw_mask(data, 150, 980)
             # save_tiff(data, '/nsls2/data/staff/xyang4/data/diffraction_ruipeng/RLi_sbcc_saxs/test_tmp.tiff')
             # plt.imshow(data)
             # plt.show()
         px, _ = data.shape
         data = nor_diff(data)
         
-        gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=False)
+        gan_diff_object = GANdiffraction(data, mask, iter_num=iter_num, recon_monitor=True)
         start = time.time()
         abs, rec = gan_diff_object.recon
         end = time.time()
         print('Running time is {}'.format(end - start))
         print(spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
-        save_tiff(rec.reshape((px, px)), spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
+        save_tiff(rec.reshape((px//8, px//8)), spath+os.path.splitext(file_name)[0][-6:]+'.tiff')
 # avg_num = 20
 # def main():
 #     for i in range(361):

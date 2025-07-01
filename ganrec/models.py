@@ -219,7 +219,7 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
 
 def make_generator_diff(img_h, img_w, conv_num, conv_size, dropout, output_num):
     units = 128
-    fc_size = (img_w//2) ** 2
+    fc_size = (img_w//8) ** 2
     inputs = Input(shape=(img_h, img_w, 1))
     x = Flatten()(inputs)
     fc_stack = [
@@ -249,7 +249,7 @@ def make_generator_diff(img_h, img_w, conv_num, conv_size, dropout, output_num):
     for fc in fc_stack:
         x = fc(x)
 
-    x = tf.reshape(x, shape=[-1, img_w//2, img_w//2, 1])
+    x = tf.reshape(x, shape=[-1, img_w//8, img_w//8, 1])
     # Convolutions
     for conv in conv_stack:
         x = conv(x)
