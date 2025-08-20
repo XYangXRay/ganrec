@@ -36,7 +36,7 @@ pixi -e pytorch install
 ```
 
 
-```
+
 
 ### Pixi quick start
 
