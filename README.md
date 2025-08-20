@@ -35,16 +35,6 @@ pixi install
 pixi -e pytorch install
 ```
 
-
-
-
-### Pixi quick start
-
-- Install Pixi: https://pixi.sh
-- Default (TensorFlow): `pixi install`
-- PyTorch only: `pixi -e pytorch install`
-- Run examples: `pixi run python examples/holography_tf.py` or `pixi -e pytorch run python examples/tomography_torch.py`
-
 Note: Environments are defined in `pyproject.toml` — `default` uses TensorFlow; `pytorch` uses PyTorch.
 
 ## Steps for general users
@@ -100,29 +90,6 @@ python3 -m pip install -e .
 
 Tip: With Pixi, the repo is already an editable dependency; `pixi install` is enough for most workflows.
 
-## Quickstart checks
-
-Verify the backend and basic imports.
-
-TensorFlow backend:
-```bash
-pixi run python - <<'PY'
-import tensorflow as tf
-import ganrectf
-print('TF:', tf.__version__)
-print('ganrectf OK')
-PY
-```
-
-PyTorch backend:
-```bash
-pixi -e pytorch run python - <<'PY'
-import torch
-import ganrectorch
-print('Torch:', torch.__version__)
-print('ganrectorch OK')
-PY
-```
 
 ## Additional Notes for Users
 
