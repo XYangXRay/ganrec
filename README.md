@@ -1,5 +1,10 @@
 # GANrec: A GAN-based data reconstruction framework
 
+![PyPI](https://img.shields.io/pypi/v/ganrec)
+![Python Version](https://img.shields.io/pypi/pyversions/ganrec)
+![License](https://img.shields.io/pypi/l/ganrec)
+[![CI](https://github.com/XYangXRay/ganrec/actions/workflows/python-app.yml/badge.svg)](https://github.com/XYangXRay/ganrec/actions/workflows/python-app.yml)
+
 ## Overview
 
 GANrec is an data reconstruction framework that harnesses the power of Generative Adversarial Networks (GANs). While traditional reconstruction methods primarily rely on intricate algorithms to piece together fragmented data, GANrec employs the generative capabilities of GANs to reimagine and revitalize data reconstruction.
