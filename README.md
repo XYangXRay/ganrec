@@ -15,7 +15,32 @@ Originally designed for the fields of tomography and phase retrieval, GANrec shi
 
 # Installation
 
-This guide provides detailed steps for setting up the `ganrec` package in a Conda environment.
+This guide provides two ways to set up `ganrec`:
+- With Pixi (recommended, reproducible): default TensorFlow+CUDA backend with an optional PyTorch-only backend.
+- With Conda/pip (alternative): manual setup.
+
+## Pixi (recommended)
+
+Pixi manages environments and dependencies declaratively via `pyproject.toml`.
+
+- Default backend (TensorFlow with CUDA extras):
+
+```bash
+pixi install
+pixi run python -c "import tensorflow as tf; print(tf.__version__)"
+```
+
+- Optional PyTorch backend (no TensorFlow):
+
+```bash
+pixi -e pytorch install
+pixi -e pytorch run python -c "import torch; print(torch.__version__)"
+```
+
+Notes:
+- The default Pixi environment installs TensorFlow with GPU support (via pip extra) and does not install PyTorch.
+- The `pytorch` Pixi environment installs PyTorch-only and does not install TensorFlow.
+- `ipython`/`ipykernel` are included so you can create a kernel for notebooks if needed.
 
 ## Steps for General Users
 
