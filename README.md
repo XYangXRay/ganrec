@@ -38,60 +38,14 @@ pixi -e pytorch install
 
 ```
 
-Notes:
-- The default Pixi environment installs TensorFlow with GPU support (via pip extra) and does not install PyTorch.
-- The `pytorch` Pixi environment installs PyTorch-only and does not install TensorFlow.
-- `ipython`/`ipykernel` are included so you can create a kernel for notebooks if needed.
+### Pixi quick start
 
-#### Getting started with Pixi
+- Install Pixi: https://pixi.sh
+- Default (TensorFlow): `pixi install`
+- PyTorch only: `pixi -e pytorch install`
+- Run examples: `pixi run python examples/holography_tf.py` or `pixi -e pytorch run python examples/tomography_torch.py`
 
-- Install Pixi (one-time): see https://pixi.sh for installers. On Linux/macOS, a common method is:
-
-```bash
-curl -fsSL https://pixi.sh/install.sh | bash
-```
-
-- Clone the repo and install dependencies (default TF backend):
-
-```bash
-git clone https://github.com/XYangXRay/ganrec.git
-cd ganrec
-pixi install
-```
-
-- Use the PyTorch-only environment instead:
-
-```bash
-pixi -e pytorch install
-```
-
-- Run scripts/commands inside the environment:
-
-```bash
-pixi run python examples/holography_tf.py
-pixi -e pytorch run python examples/tomography_torch.py
-```
-
-#### Using pyproject.toml with Pixi
-
-This project uses `pyproject.toml` to define environments and dependencies:
-
-- Features (backends):
-   - `[tool.pixi.feature.tf.pypi-dependencies]` installs TensorFlow with CUDA extras.
-   - `[tool.pixi.feature.pt.pypi-dependencies]` installs the PyTorch stack.
-
-- Environments (selection):
-   - `[tool.pixi.environments]` maps env names to features.
-      - `default` uses feature `"tf"` (TensorFlow backend).
-      - `pytorch` uses feature `"pt"` (PyTorch backend).
-
-- Project package (editable):
-   - `[tool.pixi.pypi-dependencies]` includes `ganrec = { path = ".", editable = true }` so your local edits are picked up.
-
-Tips:
-- Switch environments with `-e`, e.g. `pixi -e pytorch run ...`.
-- Add your own tools or pins under the corresponding feature’s dependency table.
-- You can define shortcuts under `[tool.pixi.tasks]` and run them with `pixi run <task>`. 
+Note: Environments are defined in `pyproject.toml` — `default` uses TensorFlow; `pytorch` uses PyTorch.
 
 ## Steps for general users
 
