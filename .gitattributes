@@ -1,3 +1,5 @@
 ganrc/_version.py export-subst
 ganrectf/_version.py export-subst
 _version.py export-subst
+# SCM syntax highlighting & preventing 3-way merges
+pixi.lock merge=binary linguist-language=YAML linguist-generated=true
