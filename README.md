@@ -35,6 +35,19 @@ pixi install
 pixi -e pytorch install
 ```
 
+Quick start with Pixi:
+
+1) Install Pixi (see https://pixi.sh)
+2) Clone this repo and enter it:
+   - git clone https://github.com/XYangXRay/ganrec.git && cd ganrec
+3) Install the default environment (TensorFlow):
+   - pixi install
+4) Or install the PyTorch environment only:
+   - pixi -e pytorch install
+5) Run examples:
+   - pixi run python examples/holography_tf.py
+   - pixi -e pytorch run python examples/tomography_torch.py
+
 Note: Environments are defined in `pyproject.toml` — `default` uses TensorFlow; `pytorch` uses PyTorch.
 
 ### Conda environment
@@ -61,8 +74,6 @@ pip install "ganrec[pytorch]"
 Notes:
 - For TensorFlow GPU wheels, see TensorFlow’s docs (e.g., tensorflow[and-cuda]) and ensure compatible NVIDIA drivers/CUDA.
 - For PyTorch, use the selector on pytorch.org for OS/CUDA-specific commands if the generic wheel doesn’t match your system.
-
-
 
 
 ## Additional Notes for Users
