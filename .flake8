@@ -4,8 +4,12 @@ exclude =
     __pycache__,
     build,
     dist,
+    .venv,
+    .tox,
     versioneer.py,
-    ganrc/_version.py,
+    ganrec/_version.py,
+    ganrectf/_version.py,
+    ganrectorch/_version.py,
     docs/source/conf.py
-ignore = E501, W503  # This comment should not be part of the ignore option
-max-line-length = 88  
+max-line-length = 115
+extend-ignore = E203, W503
