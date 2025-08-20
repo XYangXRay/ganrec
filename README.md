@@ -37,9 +37,9 @@ pixi -e pytorch install
 
 Note: Environments are defined in `pyproject.toml` — `default` uses TensorFlow; `pytorch` uses PyTorch.
 
-## Steps for general users
+### Conda environment
 
-### 1. Create & Activate a Conda Environment
+#### 1. Create & Activate a Conda Environment
 Open your terminal or command prompt and create a new conda environment named `ganrec` with Python 3.11:
 
 ```bash
@@ -47,7 +47,7 @@ conda create --name ganrec python=3.11
 conda activate ganrec
 ```
 
-### 2. Install ganrec with your preferred backend (recommended)
+#### 2. Install ganrec with your preferred backend (recommended)
 Use pip extras to install GANrec and the backend in one step:
 
 ```bash
@@ -62,33 +62,7 @@ Notes:
 - For TensorFlow GPU wheels, see TensorFlow’s docs (e.g., tensorflow[and-cuda]) and ensure compatible NVIDIA drivers/CUDA.
 - For PyTorch, use the selector on pytorch.org for OS/CUDA-specific commands if the generic wheel doesn’t match your system.
 
-## Steps for developers
-If you want to contribute or extend GANrec, follow the steps below to set up a dev environment:
 
-
-### 1. Create & Activate a Conda Environment
-Open your terminal or command prompt and create a new conda environment named `ganrec` with Python 3.11:
-
-```bash
-conda create --name ganrec python=3.11
-conda activate ganrec
-```
-   
-### 2. Clone the GANrec repository
-Clone the GANrec repository from GitHub to your local machine.
-```bash
-git clone https://github.com/XYangXRay/ganrec.git
-```
-
-### 3. Install the required packages
-
-Navigate to the main directory of the cloned repository and install the necessary packages.
-```bash
-cd ganrec
-python3 -m pip install -e .
-```
-
-Tip: With Pixi, the repo is already an editable dependency; `pixi install` is enough for most workflows.
 
 
 ## Additional Notes for Users
