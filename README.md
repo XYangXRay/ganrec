@@ -1,5 +1,10 @@
 # GANrec: A GAN-based data reconstruction framework
 
+![PyPI](https://img.shields.io/pypi/v/ganrec)
+![Python Version](https://img.shields.io/pypi/pyversions/ganrec)
+![License](https://img.shields.io/pypi/l/ganrec)
+[![CI](https://github.com/XYangXRay/ganrec/actions/workflows/python-app.yml/badge.svg)](https://github.com/XYangXRay/ganrec/actions/workflows/python-app.yml)
+
 ## Overview
 
 GANrec is an data reconstruction framework that harnesses the power of Generative Adversarial Networks (GANs). While traditional reconstruction methods primarily rely on intricate algorithms to piece together fragmented data, GANrec employs the generative capabilities of GANs to reimagine and revitalize data reconstruction.
@@ -15,9 +20,23 @@ Originally designed for the fields of tomography and phase retrieval, GANrec shi
 
 ## Installation
 
-This guide provides two ways to set up `ganrec`:
-- With Pixi (recommended, reproducible): default TensorFlow+CUDA backend with an optional PyTorch-only backend.
-- With Conda/pip (alternative): manual setup.
+The simplest way is pip. Pixi and Conda sections below show example runtime environments.
+
+### Pip (quickest)
+
+Install GANrec with your preferred backend in one step using extras:
+
+```bash
+# TensorFlow backend
+pip install "ganrec[tensorflow]"
+
+# PyTorch backend
+pip install "ganrec[pytorch]"
+```
+
+Notes:
+- For TensorFlow GPU wheels, see TensorFlow’s docs (e.g., tensorflow[and-cuda]) and ensure compatible NVIDIA drivers/CUDA.
+- For PyTorch, use the selector on pytorch.org for OS/CUDA-specific commands if the generic wheel doesn’t match your system.
 
 ### Pixi (recommended)
 
@@ -50,7 +69,7 @@ Quick start with Pixi:
 
 Note: Environments are defined in `pyproject.toml` — `default` uses TensorFlow; `pytorch` uses PyTorch.
 
-### Conda environment
+### Conda environment (example runtime)
 
 #### 1. Create & Activate a Conda Environment
 Open your terminal or command prompt and create a new conda environment named `ganrec` with Python 3.11:
@@ -60,20 +79,8 @@ conda create --name ganrec python=3.11
 conda activate ganrec
 ```
 
-#### 2. Install ganrec with your preferred backend (recommended)
-Use pip extras to install GANrec and the backend in one step:
-
-```bash
-# TensorFlow backend
-pip install "ganrec[tensorflow]"
-
-# PyTorch backend
-pip install "ganrec[pytorch]"
-```
-
-Notes:
-- For TensorFlow GPU wheels, see TensorFlow’s docs (e.g., tensorflow[and-cuda]) and ensure compatible NVIDIA drivers/CUDA.
-- For PyTorch, use the selector on pytorch.org for OS/CUDA-specific commands if the generic wheel doesn’t match your system.
+#### 2. Install ganrec with your preferred backend
+Then install via pip extras as above.
 
 
 ## Additional Notes for Users

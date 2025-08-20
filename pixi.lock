@@ -515,7 +515,7 @@ packages:
 - pypi: ./
   name: ganrec
   version: 0.2.2
-  sha256: 2bde4f13db574f45d25959cc9826e9fcecd078095484ef254d12ef7e0a01324c
+  sha256: 4a6913ccb78d34f0dcabdc41a697218ce42e6ffe9841b607b5dceea087204098
   requires_dist:
   - numpy>=1.19.2
   - tifffile>=2023.12.9
