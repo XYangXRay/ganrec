@@ -87,10 +87,10 @@ def conv_res(x, filters, size):
     return out
 
 
-def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
+def make_generator(shape_input, conv_num, conv_size, dropout, output_num):
     units = 128
-    fc_size = img_w**2
-    inputs = Input(shape=(img_h, img_w, 1))
+    fc_size = shape_input[1]**2
+    inputs = Input(shape=(*shape_input, 1))
     x = Flatten()(inputs)
     fc_stack = [
         dense_norm(units, dropout),
@@ -116,7 +116,7 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     for fc in fc_stack:
         x = fc(x)
 
-    x = Reshape((img_w, img_w, 1))(x)
+    x = Reshape((shape_input[1], shape_input[1], 1))(x)
     # Convolutions
     for conv in conv_stack:
         x = conv(x)
@@ -127,10 +127,10 @@ def make_generator(img_h, img_w, conv_num, conv_size, dropout, output_num):
     return Model(inputs=inputs, outputs=x)
 
 
-def make_generator_3d(img_h, img_w, conv_num, conv_size, dropout, output_num):
+def make_generator_3d(shape_input, conv_num, conv_size, dropout, output_num):
     units = 128
-    fc_size = img_w**2
-    inputs = Input(shape=(img_h, img_w, 1))
+    fc_size = shape_input[1]**2
+    inputs = Input(shape=(*shape_input, 1))
     x = tf.keras.layers.Flatten()(inputs)
     fc_stack = [
         dense_norm(units, dropout),
@@ -269,9 +269,9 @@ class FourierNeuralOperator:
         return model
 
 
-def make_discriminator(nang, px):
+def make_discriminator(shape_input):
     model = Sequential()
-    model.add(Conv2D(16, (5, 5), strides=(2, 2), padding="same", input_shape=[nang, px, 1]))
+    model.add(Conv2D(16, (5, 5), strides=(2, 2), padding="same", input_shape=[*shape_input, 1]))
     model.add(Conv2D(16, (5, 5), strides=(1, 1), padding="same"))
     # model.add(LayerNormalization())
     model.add(LeakyReLU())
