@@ -83,3 +83,11 @@ target/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+
+# Optional raw data folders
+examples/test_data/
+examples/test_results/
+
+
+
