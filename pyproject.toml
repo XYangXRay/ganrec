@@ -25,7 +25,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ganrec"
-version = "0.2.2"
+dynamic = ["version"]
 description = "A deep neural network data reconstruction platform"
 authors = [
     { name = "Xiaogang Yang", email = "xiaogang.yang@outlook.com" }
@@ -67,7 +67,6 @@ repository = "https://github.com/XYangXRay/ganrec"
 documentation = "https://github.com/XYangXRay/ganrec"
 
 
-
 [tool.hatch.build.targets.wheel]
 include = ["ganrectf", "ganrectorch"]
 
@@ -81,6 +80,9 @@ exclude = ["tests*"]
 [tool.hatch.publish]
 [tool.hatch.publish.repository]
 url = "https://upload.pypi.org/legacy/"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.publish.auth]
 username = "env:TWINE_USERNAME"

@@ -514,20 +514,20 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: ganrec
-  version: 0.2.2
-  sha256: 445b3ad66c87b2308123aa55bca91a006267246bdfb8b928f4364aafd23662ef
+  version: 0.3.1.dev0+g2f96b943b.d20250926
+  sha256: 4a35614111647f697341fc823401e6cf7ccaaaefbb96230ffcc3d5eea2b8d10f
   requires_dist:
-  - numpy>=1.19.2
-  - tifffile>=2023.12.9
-  - matplotlib>=3.3.2
-  - scikit-image>=0.19.3
-  - ipython>=8.12.3
   - ipykernel>=6.0.0
+  - ipython>=8.12.3
+  - matplotlib>=3.3.2
+  - numpy>=1.19.2
+  - scikit-image>=0.19.3
+  - tifffile>=2023.12.9
   - tqdm>=4.65.0
-  - tensorflow[and-cuda]>=2.17.0 ; extra == 'tensorflow'
+  - quantities ; extra == 'pytorch'
   - torch>=2.0.0 ; extra == 'pytorch'
   - torchvision ; extra == 'pytorch'
-  - quantities ; extra == 'pytorch'
+  - tensorflow[and-cuda]>=2.17.0 ; extra == 'tensorflow'
   requires_python: '>=3.9'
   editable: true
 - pypi: https://files.pythonhosted.org/packages/a3/61/8001b38461d751cd1a0c3a6ae84346796a5758123f3ed97a1b121dfbf4f3/gast-0.6.0-py3-none-any.whl
