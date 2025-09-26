@@ -515,7 +515,7 @@ packages:
 - pypi: ./
   name: ganrec
   version: 0.2.2
-  sha256: 4a6913ccb78d34f0dcabdc41a697218ce42e6ffe9841b607b5dceea087204098
+  sha256: 445b3ad66c87b2308123aa55bca91a006267246bdfb8b928f4364aafd23662ef
   requires_dist:
   - numpy>=1.19.2
   - tifffile>=2023.12.9
@@ -524,7 +524,7 @@ packages:
   - ipython>=8.12.3
   - ipykernel>=6.0.0
   - tqdm>=4.65.0
-  - tensorflow>=2.0.0 ; extra == 'tensorflow'
+  - tensorflow[and-cuda]>=2.17.0 ; extra == 'tensorflow'
   - torch>=2.0.0 ; extra == 'pytorch'
   - torchvision ; extra == 'pytorch'
   - quantities ; extra == 'pytorch'
