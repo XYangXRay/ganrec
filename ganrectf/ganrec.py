@@ -278,20 +278,20 @@ class GANtomo:
         self.generator.compile()
         self.discriminator.compile()
 
-    @tf.function
-    def tfnor_tomo(self, img):
-        img = tf.image.per_image_standardization(img)
-        img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
-        return img
+    # @tf.function
+    # def tfnor_tomo(self, img):
+    #     img = tf.image.per_image_standardization(img)
+    #     img = (img - tf.reduce_min(img)) / (tf.reduce_max(img) - tf.reduce_min(img))
+    #     return img
 
     @tf.function
     def recon_step(self, prj, ang):
         with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
             recon = self.generator(prj)
-            recon = self.tfnor_tomo(recon)
+            recon = tfnor_tomo(recon)
             tomo_radon_obj = TomoRadon(recon, ang)
             prj_rec = tomo_radon_obj.compute()
-            prj_rec = self.tfnor_tomo(prj_rec)
+            prj_rec = normalize_to_target_range(prj_rec, prj)
             real_output = self.discriminator(prj, training=True)
             fake_output = self.discriminator(prj_rec, training=True)
             g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
