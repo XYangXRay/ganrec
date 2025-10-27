@@ -514,8 +514,8 @@ packages:
   requires_python: '>=3.9'
 - pypi: ./
   name: ganrec
-  version: 0.3.1.dev0+g2f96b943b.d20250926
-  sha256: 4a35614111647f697341fc823401e6cf7ccaaaefbb96230ffcc3d5eea2b8d10f
+  version: 0.3.1.dev0+g88d1c3bb4.d20250926
+  sha256: 9b902d3228a36ead19165ebe9fc2c6980bf105765c7adcbb0369d53226556394
   requires_dist:
   - ipykernel>=6.0.0
   - ipython>=8.12.3
@@ -528,7 +528,7 @@ packages:
   - torch>=2.0.0 ; extra == 'pytorch'
   - torchvision ; extra == 'pytorch'
   - tensorflow[and-cuda]>=2.17.0 ; extra == 'tensorflow'
-  requires_python: '>=3.9'
+  requires_python: '>=3.11'
   editable: true
 - pypi: https://files.pythonhosted.org/packages/a3/61/8001b38461d751cd1a0c3a6ae84346796a5758123f3ed97a1b121dfbf4f3/gast-0.6.0-py3-none-any.whl
   name: gast
