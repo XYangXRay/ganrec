@@ -1010,56 +1010,6 @@ class GANphase:
             ema.swap_out()
 
         return np.reshape(final.astype(np.float32), self.shape_output)
-    # @property
-    # def recon(self):
-    #     ff = ffactor(self.img_w * 2, self.energy, self.z, self.pv)
-    #     i_input = np.reshape(self.i_input, (1, self.img_h, self.img_w, 1))
-    #     i_input = tf.cast(i_input, dtype=tf.float32)
-    #     self.make_model()
-    #     # phase = np.zeros((self.iter_num, self.img_h, self.img_w))
-    #     # absorption = np.zeros((self.iter_num, self.img_h, self.img_w))
-    #     # gen_loss = np.zeros(self.iter_num)
-
-    #     ###########################################################################
-    #     # Reconstruction process monitor
-    #     pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
-    #     if self.recon_monitor:
-    #         recon_monitor = RECONmonitor("phase", self.i_input)
-    #         # plot_x, plot_loss = [], []
-    #         # recon_monitor = RECONmonitor("phase")
-    #         # recon_monitor.initial_plot(self.i_input)
-    #         # pbar = tqdm(total=self.iter_num, desc="Reconstruction Progress", position=0, leave=True)
-    #     ###########################################################################
-    #     for epoch in range(self.iter_num):
-
-    #         ###########################################################################
-    #         ## Call the rconstruction step
-    #         step_result = self.rec_step(i_input, ff)
-    #         pbar.set_postfix(G_loss=step_result["g_loss"].numpy(), D_loss=step_result["d_loss"].numpy())
-    #         pbar.update(1) 
-    #         # phase[epoch, :, :] = step_results["phase"]
-    #         # absorption[epoch, :, :] = step_results["absorption"]
-    #         # i_rec = step_results["i_rec"]
-    #         # gen_loss[epoch] = step_results["g_loss"]
-    #         # d_loss = step_results["d_loss"]
-    #         ###########################################################################
-    #         if self.recon_monitor:
-    #             recon_monitor.update_plot(step_result)   
-    #             # plot_x.append(epoch)
-    #             # plot_loss = gen_loss[: epoch + 1]
-    #             # pbar.set_postfix(G_loss=gen_loss[epoch], D_loss=d_loss.numpy())
-    #             # pbar.update(1)
-    #         # if (epoch + 1) % 100 == 0:
-    #         #     if recon_monitor:
-    #         #         i_rec = np.reshape(i_rec, (self.px, self.px))
-    #         #         i_diff = np.abs(i_rec - self.i_input.reshape((self.px, self.px)))
-    #         #         phase_plt = np.reshape(phase[epoch], (self.px, self.px))
-    #         #         recon_monitor.update_plot(epoch, i_diff, phase_plt, plot_x, plot_loss)
-    #     if self.recon_monitor:
-    #         recon_monitor.close_plot()
-    #     absorption = np.reshape(step_result['absorption'].numpy().astype(np.float32), (self.img_w, self.img_w))
-    #     phase = np.reshape(step_result['phase'].numpy().astype(np.float32), (self.img_w, self.img_w))
-    #     return absorption, phase
 
 
 class GANdiffraction:
