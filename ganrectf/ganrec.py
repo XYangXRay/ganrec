@@ -6,6 +6,7 @@ import tensorflow as tf
 from ganrectf.propagators import TomoRadon, TensorRadon, PhaseFresnel, PhaseFraunhofer
 from ganrectf.models import make_generator, make_discriminator
 from ganrectf.utils import RECONmonitor, ffactor
+from ganrectf.loss import discriminator_loss, generator_loss
 
 
 def tf_configures():
@@ -118,15 +119,15 @@ def tfnor_tomo(img: tf.Tensor, eps: float = 1e-8) -> tf.Tensor:
     return img_pos
 
 # @tf.function
-def discriminator_loss(real_output, fake_output):
-    real_loss = tf.reduce_mean(
-        tf.nn.sigmoid_cross_entropy_with_logits(logits=real_output, labels=tf.ones_like(real_output))
-    )
-    fake_loss = tf.reduce_mean(
-        tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output, labels=tf.zeros_like(fake_output))
-    )
-    total_loss = real_loss + fake_loss
-    return total_loss
+# def discriminator_loss(real_output, fake_output):
+#     real_loss = tf.reduce_mean(
+#         tf.nn.sigmoid_cross_entropy_with_logits(logits=real_output, labels=tf.ones_like(real_output))
+#     )
+#     fake_loss = tf.reduce_mean(
+#         tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output, labels=tf.zeros_like(fake_output))
+#     )
+#     total_loss = real_loss + fake_loss
+#     return total_loss
 
 
 def l1_loss(img1, img2):
@@ -138,14 +139,14 @@ def l2_loss(img1, img2):
 
 
 # @tf.function
-def generator_loss(fake_output, img_output, pred, l1_ratio):
-    gen_loss = (
-        tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output, labels=tf.ones_like(fake_output))
-        )
-        + l1_loss(img_output, pred) * l1_ratio
-    )
-    return gen_loss
+# def generator_loss(fake_output, img_output, pred, l1_ratio):
+#     gen_loss = (
+#         tf.reduce_mean(
+#             tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_output, labels=tf.ones_like(fake_output))
+#         )
+#         + l1_loss(img_output, pred) * l1_ratio
+#     )
+#     return gen_loss
 
 
 def tfnor_phase(img):
@@ -294,7 +295,7 @@ class GANtomo:
             prj_rec = normalize_to_target_range(prj_rec, prj)
             real_output = self.discriminator(prj, training=True)
             fake_output = self.discriminator(prj_rec, training=True)
-            g_loss = generator_loss(fake_output, prj, prj_rec, self.l1_ratio)
+            g_loss = generator_loss(fake_output, prj, prj_rec, recon, self.l1_ratio)
             d_loss = discriminator_loss(real_output, fake_output)
         gradients_of_generator = gen_tape.gradient(g_loss, self.generator.trainable_variables)
         gradients_of_discriminator = disc_tape.gradient(d_loss, self.discriminator.trainable_variables)
