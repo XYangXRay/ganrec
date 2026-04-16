@@ -1,5 +1,5 @@
 {
-    "GANtomo": {
+    "GANrec": {
         "iter_num": 1000,
         "conv_num": 32,
         "conv_size": 3,
@@ -10,22 +10,20 @@
         "save_wpath": null,
         "init_wpath": null,
         "init_model": false,
-        "recon_monitor": true
+        "recon_monitor": true,
+        "ema_decay": 0.99,
+        "snapshot_every": 50,
+        "disk_save_every": 100,
+        "log_every": 10,
+        "spike_factor": 1.5,
+        "warmup_ratio": 0.05,
+        "lr_backoff": 0.5,
+        "lr_floor": 1e-6,
+        "freeze_disc_max": 10,
+        "rescale_range": null,
+        "auto_scale": true
     },
 
-    "GANtensor": {
-        "iter_num": 1000,
-        "conv_num": 32,
-        "conv_size": 3,
-        "dropout": 0.25,
-        "l1_ratio": 100,
-        "g_learning_rate": 1e-3,
-        "d_learning_rate": 1e-5,
-        "save_wpath": null,
-        "init_wpath": null,
-        "init_model": false,
-        "recon_monitor": true
-    },
     "GANphase": {
         "iter_num": 1000,
         "conv_num": 32,
@@ -41,19 +39,14 @@
         "init_model": false,
         "recon_monitor": true
     },
+
     "GANdiffraction": {
-        "iter_num": 1000,
-        "conv_num": 32,
-        "conv_size": 3,
-        "dropout": 0.25,
         "l1_ratio": 500,
         "abs_ratio": 0.0,
-        "g_learning_rate": 1e-3,
         "d_learning_rate": 1e-6,
-        "phase_only": true,
-        "save_wpath": null,
-        "init_wpath": null,
-        "init_model": false,
-        "recon_monitor": true
+        "phase_only": true
+    },
+
+    "GANtensor": {
     }
 }
