@@ -568,16 +568,6 @@ class GANphase(GANrec):
         img_h, img_w = i_input.shape
         ff = ffactor(img_w * 2, energy, z, pv)
 
-        # Pre-standardize input to match PhaseFresnel.compute() output.
-        # PhaseFresnel applies tf.image.per_image_standardization (zero-mean,
-        # unit-variance).  Without this, the discriminator sees different
-        # distributions for real vs fake, and SSIM / mean_match / L1 all
-        # compare mismatched value ranges.
-        mean = float(np.mean(i_input))
-        adj_std = max(float(np.std(i_input)),
-                      1.0 / np.sqrt(float(i_input.size)))
-        i_input_std = (i_input - mean) / adj_std
-
         def forward_fn(gen_output, input_tensor):
             phase = tfnor_phase(gen_output[:, :, :, 0])
             phase = tf.reshape(phase, [img_h, img_w])
@@ -587,18 +577,15 @@ class GANphase(GANrec):
                 absorption = (1 - tfnor_phase(gen_output[:, :, :, 1])) * abs_ratio
                 absorption = tf.reshape(absorption, [img_h, img_w])
             i_rec = PhaseFresnel(phase, absorption, ff, img_w).compute()
+            i_rec = normalize_to_target_range(i_rec, input_tensor)
             # Pass normalized phase as "recon" so generator_loss computes
             # TV regularization on the phase (matching the original code),
             # not on the raw multi-channel generator output.
             recon = tf.reshape(phase, [1, img_h, img_w, 1])
             return {"phase": phase, "absorption": absorption,
                     "predicted": i_rec, "recon": recon}
-
-        # Disable auto_scale: we already standardized the input above to
-        # match PhaseFresnel's per_image_standardization output.
-        phase_cfg.setdefault("auto_scale", False)
-
-        super().__init__(i_input_std, forward_fn, output_num=2,
+        kwargs.setdefault("rescale_range", "input")
+        super().__init__(i_input, forward_fn, output_num=2,
                          output_key="phase", monitor_type="phase",
                          **phase_cfg)
 
