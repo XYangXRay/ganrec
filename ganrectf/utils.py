@@ -1,10 +1,9 @@
 import os
+import datetime
 import numpy as np
 from numpy.fft import fftfreq
 import tifffile
-import matplotlib.pyplot as plt
-from skimage.metrics import structural_similarity as ssim
-from IPython.display import display, clear_output
+import tensorflow as tf
 
 
 def nor_tomo(img):
@@ -92,132 +91,398 @@ def in_notebook():
 
 
 class RECONmonitor:
-    def __init__(self, recon_target):
-        self.fig, self.axs = plt.subplots(2, 2, figsize=(16, 8))
+    """TensorFlow-native reconstruction monitor.
+
+    Logs scalar losses, gradient norms, SSIM scores, and image summaries
+    to a TensorBoard logdir.  When running inside a Jupyter notebook, also
+    renders inline image panels using ``tf.io.encode_png`` and
+    ``IPython.display`` (no matplotlib dependency).
+
+    Parameters
+    ----------
+    recon_target : str
+        ``"tomo"``, ``"phase"``, or ``"tensor"``.
+    img_input : ndarray (2-D)
+        The measured input image (sinogram / intensity / ...).
+    logdir : str or None
+        TensorBoard log directory.  Defaults to ``logs/ganrec/<timestamp>``.
+    update_rate : int
+        Write image / inline display every *update_rate* steps.
+        Scalar summaries are written every step.
+    """
+
+    def __init__(self, recon_target, img_input, logdir=None, update_rate=100):
         self.recon_target = recon_target
-        if self.recon_target == "tomo":
-            self.plot_txt = "Sinogram"
-        elif self.recon_target == "phase":
-            self.plot_txt = "Intensity"
-
-    def initial_plot(self, img_input):
-        _, px = img_input.shape
-        self.im0 = self.axs[0, 0].imshow(img_input, cmap="gray")
-        self.axs[0, 0].set_title(self.plot_txt)
-        self.fig.colorbar(self.im0, ax=self.axs[0, 0])
-        self.axs[0, 0].set_aspect("equal", "box")
-        self.im1 = self.axs[1, 0].imshow(img_input, cmap="jet")
-        self.tx1 = self.axs[1, 0].set_title("Difference of " + self.plot_txt + " for iteration 0")
-        self.fig.colorbar(self.im1, ax=self.axs[1, 0])
-        self.axs[1, 0].set_aspect("equal")
-        self.im2 = self.axs[0, 1].imshow(np.zeros((px, px)), cmap="gray")
-        self.fig.colorbar(self.im2, ax=self.axs[0, 1])
-        self.axs[0, 1].set_title("Reconstruction")
-        (self.im3,) = self.axs[1, 1].plot([], [], "r-")
-        self.axs[1, 1].set_title("Generator loss")
-        plt.tight_layout()
-
-    def update_plot(self, epoch, img_diff, img_rec, plot_x, plot_loss):
-        self.tx1.set_text("Difference of " + self.plot_txt + " for iteration {0}".format(epoch))
-        vmax = np.max(img_diff)
-        vmin = np.min(img_diff)
-        self.im1.set_data(img_diff)
-        self.im1.set_clim(vmin, vmax)
-        self.im2.set_data(img_rec)
-        vmax = np.max(img_rec)
-        vmin = np.min(img_rec)
-        self.im2.set_clim(vmin, vmax)
-        self.axs[1, 1].plot(plot_x, plot_loss, "r-")
-        plt.tight_layout()
-        if in_notebook():
-            clear_output(wait=True)
-            display(self.fig)
-            plt.pause(0.001)
-        else:
-            plt.ion()  # Turn on interactive mode
-            plt.draw()
-            plt.pause(0.001)
-
-    def close_plot(self):
-        plt.close()
-        
-class RECONmonitor:
-    def __init__(self, recon_target, img_input):
-        self.fig, self.axs = plt.subplots(2, 2, figsize=(16, 8))
-        self.recon_target = recon_target
-        self.update_rate = 100
-        self.img_input = img_input
+        self.img_input = img_input.astype(np.float32)
         self.img_h, self.img_w = img_input.shape
-        self.epoch = 0
-        self.plot_y1, self.plot_y2 = [], []
-        if self.recon_target in ["tomo", "tensor"]:
-            self.plot_txt = "Sinogram"
-        elif self.recon_target == "phase":
-            self.plot_txt = "Intensity"
-        self.__initial_plot()
+        self.update_rate = int(update_rate)
+        self.step = 0
+        self.total_steps = 0  # set by caller for progress display
+        self._in_notebook = in_notebook()
 
-    def __initial_plot(self):
-        self.im0 = self.axs[0, 0].imshow(self.img_input, cmap="gray")
-        self.axs[0, 0].set_title(self.plot_txt)
-        self.fig.colorbar(self.im0, ax=self.axs[0, 0])
-        self.axs[0, 0].set_aspect("equal", "box")
-        self.im1 = self.axs[1, 0].imshow(self.img_input, cmap="jet")
-        self.tx1 = self.axs[1, 0].set_title("SSIM map of " + self.plot_txt + " for iteration 0")
-        self.fig.colorbar(self.im1, ax=self.axs[1, 0])
-        self.axs[1, 0].set_aspect("equal")
-        self.im2 = self.axs[0, 1].imshow(np.zeros((self.img_w, self.img_w)), cmap="gray")
-        self.fig.colorbar(self.im2, ax=self.axs[0, 1])
-        self.axs[0, 1].set_title("Reconstruction")
-        (self.im3,) = self.axs[1, 1].plot([], [], "r-")
-        self.axs[1, 1].set_title("Reconstruction loss")
-        self.axs[1, 1].set_yscale("log")
-        plt.tight_layout()
+        # Accumulated loss history for inline display
+        self._g_losses = []
+        self._d_losses = []
 
-    def update_plot(self, step_result):      
-        self.epoch = self.epoch+1 
-        self.plot_x = np.arange(self.epoch)
-        self.plot_y1.append(step_result['g_loss'].numpy())
-        self.plot_y2.append(step_result['d_loss'].numpy())
-        
-        if (self.epoch + 1) % self.update_rate == 0:
-            if self.recon_target == "tomo":
-                img_rec = np.reshape(step_result['recon'], (self.img_w, self.img_w))
-                prj_rec = np.reshape(step_result['prj_rec'], (self.img_h, self.img_w))
-            elif self.recon_target == "tensor":
-                img_rec = np.reshape(step_result['recon'][:,:,:,0], (self.img_w, self.img_w))
-                prj_rec = np.reshape(step_result['prj_rec'], (self.img_h, self.img_w))
-            elif self.recon_target == "phase":
-                img_rec = np.reshape(step_result['phase'], (self.img_w, self.img_w))
-                prj_rec = np.reshape(step_result['i_rec'], (self.img_h, self.img_w))
-                
-                
-            # img_diff = np.abs(prj_rec - self.img_input)
-            img_range = self.img_input.max() - self.img_input.min()
-            ssim_index, ssim_map = ssim(prj_rec, self.img_input, full=True, data_range=img_range)
-            self.tx1.set_text("SSIM map of " + self.plot_txt + " for iteration {0}".format(self.epoch))
-            vmax = np.max(ssim_map)
-            vmin = np.min(ssim_map)
-            self.im1.set_data(ssim_map)
-            self.im1.set_clim(vmin, vmax)
-            self.im2.set_data(img_rec)
-            vmax = np.max(img_rec)
-            vmin = np.min(img_rec)
-            self.im2.set_clim(vmin, vmax)
-            self.axs[1, 1].plot(self.plot_x, self.plot_y1, "r-")
-            self.axs[1, 1].plot(self.plot_x, self.plot_y2, "b-")
-            
-            plt.tight_layout()
-            if in_notebook():
-                clear_output(wait=True)
-                display(self.fig)
-                plt.pause(0.001)
+        if logdir is None:
+            ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            logdir = os.path.join("logs", "ganrec", ts)
+        self.logdir = logdir
+        self.writer = tf.summary.create_file_writer(logdir)
+
+        # Map recon_target to the dict keys produced by forward_fn
+        if recon_target in ("tomo", "tensor"):
+            self._recon_key = "recon"
+            self._pred_key  = "prj_rec"
+        elif recon_target == "phase":
+            self._recon_key = "phase"
+            self._pred_key  = "i_rec"
+        else:
+            self._recon_key = "recon"
+            self._pred_key  = "predicted"
+
+        # Also accept "predicted" as a fallback for _pred_key
+        self._pred_fallback = "predicted"
+
+        # Write the input image once
+        with self.writer.as_default():
+            inp_img = self._to_image_tensor(
+                tf.constant(self.img_input))
+            tf.summary.image("input", inp_img, step=0)
+        self.writer.flush()
+
+    # ------------------------------------------------------------------ #
+    #  Helpers
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _to_image_tensor(t):
+        """Normalise a 2-D+ tensor to [0, 1] and reshape to [1, H, W, 1]."""
+        t = tf.cast(t, tf.float32)
+        t_flat = tf.reshape(t, [-1])
+        t_min = tf.reduce_min(t_flat)
+        t_max = tf.reduce_max(t_flat)
+        t_norm = (t - t_min) / (t_max - t_min + 1e-8)
+        if t_norm.shape.ndims is None or t_norm.shape.ndims == 2:
+            return tf.reshape(t_norm, [1, tf.shape(t_norm)[0], tf.shape(t_norm)[1], 1])
+        elif t_norm.shape.ndims == 3:
+            return tf.reshape(t_norm, [1, tf.shape(t_norm)[0], tf.shape(t_norm)[1], tf.shape(t_norm)[2]])
+        elif t_norm.shape.ndims == 4:
+            return t_norm[:1]
+        return tf.reshape(t_norm, [1, tf.shape(t_norm)[0], tf.shape(t_norm)[1], 1])
+
+    @staticmethod
+    def _to_png_bytes(img_4d):
+        """Convert a [1, H, W, 1] float32 tensor to PNG bytes."""
+        img_uint8 = tf.cast(tf.clip_by_value(img_4d[0] * 255.0, 0, 255), tf.uint8)
+        return tf.io.encode_png(img_uint8)
+
+    @tf.function(reduce_retracing=True)
+    def _tf_ssim(self, pred, target):
+        """Compute SSIM between two 2-D tensors (on device)."""
+        pred_4d = tf.reshape(pred, [1, tf.shape(pred)[0], tf.shape(pred)[1], 1])
+        tgt_4d  = tf.reshape(target, [1, tf.shape(target)[0], tf.shape(target)[1], 1])
+        max_val = tf.reduce_max(tgt_4d) - tf.reduce_min(tgt_4d)
+        return tf.image.ssim(pred_4d, tgt_4d, max_val=max_val + 1e-8)
+
+    def _get_pred_tensor(self, step_result):
+        """Resolve the predicted-measurement tensor from step_result."""
+        if self._pred_key in step_result:
+            return step_result[self._pred_key]
+        return step_result.get(self._pred_fallback)
+
+    # ------------------------------------------------------------------ #
+    #  Inline Jupyter display (no matplotlib)
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _colorbar_html(tensor, height=256):
+        """Generate a vertical HTML/CSS colorbar with min/max value labels.
+
+        Uses a grayscale gradient matching the image normalization
+        (white = max, black = min) and annotates with true data values.
+        """
+        if hasattr(tensor, 'numpy'):
+            t_np = tensor.numpy()
+        else:
+            t_np = np.asarray(tensor)
+        vmin, vmax = float(t_np.min()), float(t_np.max())
+        return (
+            f'<div style="display:flex;flex-direction:column;align-items:center;'
+            f'justify-content:space-between;height:{height}px;margin-left:2px;'
+            f'font-family:monospace;font-size:10px;color:#333;">'
+            f'<div>{vmax:.3g}</div>'
+            f'<div style="width:14px;flex:1;margin:2px 0;'
+            f'background:linear-gradient(to bottom,#fff,#000);'
+            f'border:1px solid #999;"></div>'
+            f'<div>{vmin:.3g}</div>'
+            f'</div>'
+        )
+
+    def _image_panel(self, title, tensor, b64_png, img_width=256):
+        """Build an HTML snippet for one image panel with a colorbar."""
+        # Compute displayed image height from tensor aspect ratio
+        if hasattr(tensor, 'shape'):
+            shape = tensor.shape
+            # Handle [B,H,W,C], [H,W,C], [H,W] tensors
+            if shape.ndims == 4:
+                th, tw = int(shape[1]), int(shape[2])
+            elif shape.ndims == 3:
+                th, tw = int(shape[0]), int(shape[1])
+            elif shape.ndims == 2:
+                th, tw = int(shape[0]), int(shape[1])
             else:
-                plt.ion()  # Turn on interactive mode
-                plt.draw()
-                plt.pause(0.001)
+                th, tw = 1, 1
+            img_height = int(img_width * th / max(tw, 1))
+        else:
+            img_height = img_width
+        cbar = self._colorbar_html(tensor, height=img_height)
+        return (
+            f'<div style="display:flex;align-items:flex-start;">'
+            f'<div>'
+            f'<div style="font-size:12px;font-weight:bold;">{title}</div>'
+            f'<img src="data:image/png;base64,{b64_png}" '
+            f'style="image-rendering:pixelated;width:{img_width}px;height:{img_height}px;"/>'
+            f'</div>'
+            f'{cbar}'
+            f'</div>'
+        )
 
-    def close_plot(self):
-        plt.close()        
+    def _display_inline(self, step_result, ssim_val):
+        """Render an inline HTML panel in the notebook using IPython.display.
+
+        Layout:
+          Row 1: Reconstruction (centered)
+          Row 2: Input + Predicted (side by side)
+          Row 3: Loss convergence curve
+        """
+        from IPython.display import display, clear_output, HTML
+        import base64
+
+        parts = []
+
+        # Progress bar
+        if self.total_steps > 0:
+            pct = min(100, self.step * 100 / self.total_steps)
+            parts.append(
+                f'<div style="background:#e0e0e0;border-radius:4px;height:18px;'
+                f'width:100%;max-width:600px;margin-bottom:4px;">'
+                f'<div style="background:#1976d2;height:100%;border-radius:4px;'
+                f'width:{pct:.1f}%;min-width:2px;"></div></div>'
+                f'<div style="font-size:12px;margin-bottom:6px;">'
+                f'Step {self.step}/{self.total_steps} ({pct:.0f}%)</div>'
+            )
+
+        parts.append(
+            f"<b>G_loss:</b> {self._g_losses[-1]:.4f} &nbsp; "
+            f"<b>D_loss:</b> {self._d_losses[-1]:.4f} &nbsp; "
+            f"<b>SSIM:</b> {ssim_val:.4f}"
+        )
+
+        # Row 1: Reconstruction
+        if self._recon_key in step_result:
+            recon_t = step_result[self._recon_key]
+            if self.recon_target == "tensor":
+                recon_t = recon_t[:, :, :, 0] if recon_t.shape.ndims == 4 else recon_t
+            rec_img = self._to_image_tensor(recon_t)
+            rec_png = self._to_png_bytes(rec_img).numpy()
+            rec_b64 = base64.b64encode(rec_png).decode()
+            parts.append(
+                '<div style="display:flex;gap:16px;justify-content:center;margin-bottom:8px;">'
+            )
+            parts.append(self._image_panel("Reconstruction", recon_t, rec_b64))
+            parts.append("</div>")
+
+        # Row 2: Input + Predicted
+        parts.append(
+            '<div style="display:flex;gap:16px;justify-content:center;margin-bottom:8px;">'
+        )
+        inp_t = tf.constant(self.img_input)
+        inp_img = self._to_image_tensor(inp_t)
+        inp_png = self._to_png_bytes(inp_img).numpy()
+        inp_b64 = base64.b64encode(inp_png).decode()
+        parts.append(self._image_panel("Input", inp_t, inp_b64))
+
+        pred_t = self._get_pred_tensor(step_result)
+        if pred_t is not None:
+            pred_img = self._to_image_tensor(pred_t)
+            pred_png = self._to_png_bytes(pred_img).numpy()
+            pred_b64 = base64.b64encode(pred_png).decode()
+            parts.append(self._image_panel("Predicted", pred_t, pred_b64))
+        parts.append("</div>")
+
+        # Row 3: Loss convergence curve
+        if len(self._g_losses) > 1:
+            parts.append(self._loss_svg())
+
+        clear_output(wait=True)
+        display(HTML("\n".join(parts)))
+
+    def _loss_svg(self):
+        """Render a compact inline SVG loss chart with axes (no matplotlib)."""
+        w, h = 600, 160
+        left, right, top, bottom = 60, 20, 15, 40
+        plot_w = w - left - right
+        plot_h = h - top - bottom
+        n = len(self._g_losses)
+        if n < 2:
+            return ""
+
+        # Combine both loss series to get a shared Y range
+        all_vals = self._g_losses + self._d_losses
+        ymin, ymax = min(all_vals), max(all_vals)
+        if ymax == ymin:
+            ymax = ymin + 1
+
+        def _map(vals):
+            xs = [left + i / (n - 1) * plot_w for i in range(n)]
+            ys = [top + (1 - (v - ymin) / (ymax - ymin)) * plot_h for v in vals]
+            return xs, ys
+
+        gx, gy = _map(self._g_losses)
+        dx, dy = _map(self._d_losses)
+
+        g_pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(gx, gy))
+        d_pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(dx, dy))
+
+        # X-axis tick labels (step numbers)
+        n_xticks = min(5, n)
+        xticks = ""
+        for i in range(n_xticks):
+            idx = int(i / (n_xticks - 1) * (n - 1)) if n_xticks > 1 else 0
+            x_pos = left + idx / (n - 1) * plot_w
+            step_num = idx  # monitor step index
+            xticks += (
+                f'<line x1="{x_pos:.1f}" y1="{top + plot_h}" '
+                f'x2="{x_pos:.1f}" y2="{top + plot_h + 4}" stroke="#666"/>'
+                f'<text x="{x_pos:.1f}" y="{top + plot_h + 16}" '
+                f'font-size="10" fill="#666" text-anchor="middle">{step_num}</text>'
+            )
+
+        # Y-axis tick labels (loss values)
+        n_yticks = 4
+        yticks = ""
+        for i in range(n_yticks):
+            frac = i / (n_yticks - 1)
+            y_pos = top + (1 - frac) * plot_h
+            val = ymin + frac * (ymax - ymin)
+            yticks += (
+                f'<line x1="{left - 4}" y1="{y_pos:.1f}" '
+                f'x2="{left}" y2="{y_pos:.1f}" stroke="#666"/>'
+                f'<text x="{left - 6}" y="{y_pos + 3:.1f}" '
+                f'font-size="10" fill="#666" text-anchor="end">{val:.3g}</text>'
+            )
+
+        svg = (
+            f'<svg width="{w}" height="{h}" xmlns="http://www.w3.org/2000/svg" '
+            f'style="background:#fafafa; border:1px solid #ddd; margin-top:8px;">'
+            # Axes
+            f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_h}" '
+            f'stroke="#999" stroke-width="1"/>'
+            f'<line x1="{left}" y1="{top + plot_h}" x2="{left + plot_w}" '
+            f'y2="{top + plot_h}" stroke="#999" stroke-width="1"/>'
+            # Tick marks
+            f'{xticks}{yticks}'
+            # Axis labels
+            f'<text x="{left + plot_w / 2}" y="{h - 2}" font-size="11" '
+            f'fill="#333" text-anchor="middle">Step</text>'
+            f'<text x="12" y="{top + plot_h / 2}" font-size="11" fill="#333" '
+            f'text-anchor="middle" transform="rotate(-90,12,{top + plot_h / 2})">Loss</text>'
+            # Data lines
+            f'<polyline points="{g_pts}" fill="none" stroke="#d32f2f" stroke-width="1.5"/>'
+            f'<polyline points="{d_pts}" fill="none" stroke="#1565c0" stroke-width="1.5"/>'
+            # Legend
+            f'<line x1="{left + plot_w - 120}" y1="{top + 10}" '
+            f'x2="{left + plot_w - 100}" y2="{top + 10}" stroke="#d32f2f" stroke-width="2"/>'
+            f'<text x="{left + plot_w - 96}" y="{top + 14}" font-size="10" fill="#d32f2f">'
+            f'G: {self._g_losses[-1]:.4f}</text>'
+            f'<line x1="{left + plot_w - 120}" y1="{top + 24}" '
+            f'x2="{left + plot_w - 100}" y2="{top + 24}" stroke="#1565c0" stroke-width="2"/>'
+            f'<text x="{left + plot_w - 96}" y="{top + 28}" font-size="10" fill="#1565c0">'
+            f'D: {self._d_losses[-1]:.4f}</text>'
+            f'</svg>'
+        )
+        return svg
+
+    # ------------------------------------------------------------------ #
+    #  Public API
+    # ------------------------------------------------------------------ #
+    def update_plot(self, step_result):
+        """Write summaries and optionally display inline in Jupyter.
+
+        Parameters
+        ----------
+        step_result : dict
+            Dictionary returned by ``recon_step``.
+        """
+        self.step += 1
+        step = self.step
+
+        # Accumulate losses (cheap — just float scalars)
+        self._g_losses.append(float(step_result["g_loss"].numpy()))
+        self._d_losses.append(float(step_result["d_loss"].numpy()))
+
+        with self.writer.as_default():
+            # ---- Scalar summaries (every step) ----
+            g_loss = step_result["g_loss"]
+            d_loss = step_result["d_loss"]
+            tf.summary.scalar("loss/generator", g_loss, step=step)
+            tf.summary.scalar("loss/discriminator", d_loss, step=step)
+
+            if "g_gnorm" in step_result:
+                tf.summary.scalar("grad_norm/generator",
+                                  step_result["g_gnorm"], step=step)
+            if "d_gnorm" in step_result:
+                tf.summary.scalar("grad_norm/discriminator",
+                                  step_result["d_gnorm"], step=step)
+
+            # ---- Image summaries + SSIM (every update_rate steps) ----
+            ssim_val = 0.0
+            if step % self.update_rate == 0:
+                # Reconstruction image
+                if self._recon_key in step_result:
+                    recon_t = step_result[self._recon_key]
+                    if self.recon_target == "tensor":
+                        recon_t = recon_t[:, :, :, 0] if recon_t.shape.ndims == 4 else recon_t
+                    recon_img = self._to_image_tensor(recon_t)
+                    tf.summary.image("reconstruction", recon_img, step=step)
+
+                # Predicted measurement + SSIM
+                pred_t = self._get_pred_tensor(step_result)
+                if pred_t is not None:
+                    pred_img = self._to_image_tensor(pred_t)
+                    tf.summary.image("predicted", pred_img, step=step)
+
+                    pred_2d = tf.reshape(
+                        tf.cast(pred_t, tf.float32),
+                        [self.img_h, self.img_w],
+                    )
+                    input_tf = tf.constant(self.img_input)
+                    ssim_val = float(self._tf_ssim(pred_2d, input_tf)[0].numpy())
+                    tf.summary.scalar("metrics/ssim", ssim_val, step=step)
+
+        # Flush + inline display periodically
+        if step % self.update_rate == 0:
+            self.writer.flush()
+            if self._in_notebook:
+                self._display_inline(step_result, ssim_val)
+
+    def close_plot(self, last_step_result=None):
+        """Flush, do a final inline display, and close the TensorBoard writer."""
+        self.writer.flush()
+        # Final inline display so progress shows 100%
+        if self._in_notebook and last_step_result is not None:
+            # Compute final SSIM
+            ssim_val = 0.0
+            pred_t = self._get_pred_tensor(last_step_result)
+            if pred_t is not None:
+                pred_2d = tf.reshape(
+                    tf.cast(pred_t, tf.float32),
+                    [self.img_h, self.img_w],
+                )
+                input_tf = tf.constant(self.img_input)
+                ssim_val = float(self._tf_ssim(pred_2d, input_tf)[0].numpy())
+            self._display_inline(last_step_result, ssim_val)
+        self.writer.close()
+
 
 def display_strain_tensor(tensor, profile_index=None):
     """
@@ -242,6 +507,8 @@ def display_strain_tensor(tensor, profile_index=None):
     """
     if tensor.shape[0] not in [3, 6]:
         raise ValueError("Input tensor must have 3 or 6 components in the first dimension")
+
+    import matplotlib.pyplot as plt
 
     component_names = (
         [

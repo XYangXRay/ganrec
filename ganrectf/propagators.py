@@ -97,7 +97,6 @@ class PhaseFresnel:
         ifp = tf.abs(tf.signal.ifft2d(self.ff * tf.signal.fft2d(abfs))) ** 2
         ifp = tf.reshape(ifp, [ifp.shape[0], ifp.shape[1], 1])
         ifp = tf.image.central_crop(ifp, 0.5)
-        ifp = tf.image.per_image_standardization(ifp)
         ifp = tf.reshape(ifp, [1, ifp.shape[0], ifp.shape[1], 1])
         return ifp
 
@@ -115,6 +114,4 @@ class PhaseFraunhofer:
         ifp = tf.math.log(ifp + self.shift_factor)
         ifp = tf.signal.fftshift(ifp)
         ifp = tf.reshape(ifp, [1, ifp.shape[0], ifp.shape[1], 1])
-        ifp = tf.image.per_image_standardization(ifp)
-        # ifp = self.tfnor_diff(ifp)
         return ifp

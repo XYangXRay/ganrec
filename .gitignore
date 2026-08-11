@@ -89,5 +89,8 @@ target/
 examples/test_data/
 examples/test_results/
 
+#logs
+examples/logs/
+
 
 
