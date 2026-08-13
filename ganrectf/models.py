@@ -35,7 +35,7 @@ def dense_norm(units, dropout, apply_batchnorm=False):
     return result
 
 
-def conv2d_norm(filters, size, strides, apply_batchnorm=False):
+def conv2d_norm(filters, size, strides, apply_batchnorm=False, act="leakyrelu"):
     initializer = tf.random_normal_initializer()
 
     result = Sequential()
@@ -46,7 +46,24 @@ def conv2d_norm(filters, size, strides, apply_batchnorm=False):
     if apply_batchnorm:
         result.add(LayerNormalization())
 
-    result.add(LeakyReLU())
+    if isinstance(act, bool):
+        raise ValueError(f"Invalid activation: {act!r}. Expected a string or a float.")
+    if isinstance(act, (int, float)):
+        # numeric act -> use as negative_slope of LeakyReLU
+        result.add(LeakyReLU(negative_slope=float(act)))
+    elif act == "leakyrelu":
+        result.add(LeakyReLU())
+    elif act == "relu":
+        result.add(Activation("relu"))
+    elif act == "softplus":
+        result.add(Activation("softplus"))
+    elif act == "linear":
+        result.add(Activation("linear"))
+    else:
+        raise ValueError(
+            f"Unsupported activation: {act!r}. Expected one of "
+            "'leakyrelu', 'relu', 'softplus', 'linear', or a float for LeakyReLU negative_slope."
+        )
 
     return result
 
@@ -87,7 +104,7 @@ def conv_res(x, filters, size):
     return out
 
 
-def make_generator(shape_input, conv_num, conv_size, dropout, output_num):
+def make_generator(shape_input, conv_num, conv_size, dropout, output_num, final_activation=0.01):
     units = 128
     fc_size = shape_input[1]**2
     inputs = Input(shape=(*shape_input, 1))
@@ -111,7 +128,7 @@ def make_generator(shape_input, conv_num, conv_size, dropout, output_num):
         dconv2d_norm(conv_num, conv_size, 1),
     ]
 
-    last = conv2d_norm(output_num, 3, 1)
+    last = conv2d_norm(output_num, 3, 1, act=final_activation)
 
     for fc in fc_stack:
         x = fc(x)
