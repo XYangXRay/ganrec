@@ -104,10 +104,12 @@ class RECONmonitor:
 
         if self.recon_target == "tomo":
             self.plot_txt = "Sinogram"
-            self.dummy_img1 = np.zeros((self.img_input.shape[1], self.img_input.shape[1]))
-            self.dummy_img2 = np.zeros_like(self.img_input)
         elif self.recon_target == "phase":
             self.plot_txt = "Intensity"
+        else:
+            self.plot_txt = "Input"
+        self.dummy_img1 = np.zeros((self.img_input.shape[1], self.img_input.shape[1]))
+        self.dummy_img2 = np.zeros_like(self.img_input)
 
         self._initialize_plot()
 

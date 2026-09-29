@@ -38,6 +38,13 @@ pytorch = [
     "torchvision",
     "quantities",
 ]
+diffusers = [
+    "torch>=2.0.0",
+    "torchvision",
+    "quantities",
+    "diffusers>=0.27.0",
+    "huggingface-hub>=0.20.0",
+]
 
 
 [project.urls]
@@ -47,12 +54,12 @@ documentation = "https://github.com/XYangXRay/ganrec"
 
 
 [tool.hatch.build.targets.wheel]
-include = ["ganrectf", "ganrectorch"]
+include = ["ganrectf", "ganrectorch", "ganrecdiff"]
 
 
 
 [tool.setuptools.packages.find]
-where = ["ganrectf", "ganrectorch"]
+where = ["ganrectf", "ganrectorch", "ganrecdiff"]
 exclude = ["tests*"]
 
 
@@ -83,6 +90,8 @@ ganrec = { path = ".", editable = true }
  torch = ">=2.0.0"
  torchvision = "*"
  quantities = "*"
+ diffusers = ">=0.27.0"
+ huggingface-hub = ">=0.20.0"
 
 [tool.pixi.environments]
 default = { features = ["tf"], solve-group = "tf" }
