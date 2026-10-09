@@ -101,18 +101,13 @@ class PhaseFresnel:
         self.px = px
 
     def compute(self):
-        paddings = torch.tensor([[self.px // 2, self.px // 2], [self.px // 2, self.px // 2]])
-        pvalue = torch.mean(self.phase[:100, :])
-        self.phase = torch.nn.functional.pad(self.phase, paddings, "reflect")
-        self.absorption = torch.nn.functional.pad(self.absorption, paddings, "reflect")
-        abfs = torch.complex(-self.absorption, self.phase)
-        abfs = torch.exp(abfs)
+        pad = self.px // 2
+        phase = torch.nn.functional.pad(self.phase[None, None], (pad, pad, pad, pad), mode="reflect")[0, 0]
+        absorption = torch.nn.functional.pad(self.absorption[None, None], (pad, pad, pad, pad), mode="reflect")[0, 0]
+        abfs = torch.exp(torch.complex(-absorption, phase))
         ifp = torch.abs(torch.fft.ifft2(self.ff * torch.fft.fft2(abfs))) ** 2
-        ifp = ifp.view(ifp.shape[0], ifp.shape[1], 1)
-        ifp = transforms.CenterCrop(ifp.shape[0] // 2)(ifp)
-        ifp = transforms.Normalize(0, 1)(ifp)
-        ifp = ifp.view(1, ifp.shape[0], ifp.shape[1], 1)
-        return ifp
+        ifp = ifp[pad:pad + self.px, pad:pad + self.px]
+        return ifp.view(1, 1, self.px, self.px)
 
 
 class PhaseFraunhofer:
@@ -127,6 +122,5 @@ class PhaseFraunhofer:
         ifp = torch.square(torch.abs(torch.fft.fft2(wf)))
         ifp = torch.log(ifp + self.shift_factor)
         ifp = torch.fft.fftshift(ifp)
-        ifp = ifp.view(1, ifp.shape[0], ifp.shape[1], 1)
-        ifp = transforms.Normalize(0, 1)(ifp)
-        return ifp
+        ifp = (ifp - torch.min(ifp)) / (torch.max(ifp) - torch.min(ifp))
+        return ifp.view(1, 1, ifp.shape[0], ifp.shape[1])
