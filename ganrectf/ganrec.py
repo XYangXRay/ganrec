@@ -144,7 +144,14 @@ class GANrec:
         self.conv_num = base_args["conv_num"]
         self.conv_size = base_args["conv_size"]
         self.dropout = base_args["dropout"]
-        self.l1_ratio = base_args["l1_ratio"]
+        self.final_activation = base_args["final_activation"]
+        # self.l1_ratio = base_args["l1_ratio"]
+        self.weight_coeffs = {'l1': base_args["l1_ratio"],
+                              'ssim': base_args["ssim_coeff"],
+                              'tv': base_args['tv_coeff'],
+                              'mean_match': base_args['mm_coeff'],
+                              'variance_match': base_args['vm_coeff'],
+                              }
         self.g_learning_rate = base_args["g_learning_rate"]
         self.d_learning_rate = base_args["d_learning_rate"]
         self.save_wpath = base_args["save_wpath"]
@@ -182,7 +189,7 @@ class GANrec:
     def _make_model(self):
         self.generator = make_generator(
             self.shape_input, self.conv_num, self.conv_size,
-            self.dropout, self.output_num
+            self.dropout, self.output_num, self.final_activation
         )
         self.discriminator = make_discriminator(self.shape_input)
 
@@ -260,7 +267,7 @@ class GANrec:
             fake_output = self.discriminator(predicted, training=True)
             recon = fwd.get("recon", gen_output)
             g_loss = generator_loss(fake_output, input_tensor, predicted,
-                                    recon, self.l1_ratio)
+                                    recon, self.weight_coeffs)
             d_loss = discriminator_loss(real_output, fake_output)
 
         gen_grads = tape.gradient(g_loss, self.generator.trainable_variables)

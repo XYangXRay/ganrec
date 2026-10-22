@@ -5,6 +5,10 @@
         "conv_size": 3,
         "dropout": 0.25,
         "l1_ratio": 100,
+        "ssim_coeff":50,
+        "tv_coeff": 1e-5,
+        "mm_coeff": 0.05,
+        "vm_coeff": 0.05,
         "g_learning_rate": 1e-3,
         "d_learning_rate": 1e-5,
         "save_wpath": null,
@@ -21,7 +25,8 @@
         "lr_floor": 1e-6,
         "freeze_disc_max": 10,
         "rescale_range": null,
-        "auto_scale": true
+        "auto_scale": true,
+        "final_activation": 0.01
     },
 
     "GANphase": {

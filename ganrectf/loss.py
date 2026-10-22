@@ -12,7 +12,12 @@ def discriminator_loss(real_output, fake_output, smoothing = 0.1):
     return total_loss
 
 @tf.function
-def generator_loss(fake_output, img_target, img_pred, recon, l1_ratio):
+def generator_loss(fake_output, img_target, img_pred, recon, 
+                    weights = {'l1': 100,
+                              'ssim': 50,
+                              'tv': 1e-5,
+                              'mean_match': 0.05,
+                              'variance_match': 0.05}):
     # Cast all inputs to float32 for consistency.
     fake_output = tf.cast(fake_output, tf.float32)
     img_target = tf.cast(img_target, tf.float32)
@@ -38,10 +43,10 @@ def generator_loss(fake_output, img_target, img_pred, recon, l1_ratio):
     # The working version for most of the cases:
 
     gen_loss = adv_loss + \
-        abs_loss*20 + \
-        ssim_component*50 + 1e-5 * tv_component + \
-        0.05 * mean_match(img_target, img_pred) + \
-        0.05 * variance_floor(img_pred)
+        abs_loss*weights['l1'] + \
+        ssim_component*weights['ssim'] + weights['tv'] * tv_component + \
+        weights['mean_match'] * mean_match(img_target, img_pred) + \
+        weights['variance_match'] * variance_floor(img_pred)
     # Testing for 3d xrd
     # gen_loss = adv_loss + \
     #     abs_loss*0.01 + \
